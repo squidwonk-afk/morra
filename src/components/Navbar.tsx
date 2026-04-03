@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Menu, X } from "lucide-react";
+import { Bell, Menu, Trophy, X } from "lucide-react";
 import { MorraLogo } from "@/components/ui/MorraLogo";
 import { Button } from "@/components/ui/button";
 import { useMorraUser } from "@/contexts/MorraUserContext";
@@ -18,6 +18,7 @@ type NotificationRow = {
 };
 
 export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
+  const [songWarsNavVisible, setSongWarsNavVisible] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [notifBusy, setNotifBusy] = useState(false);
@@ -95,6 +96,36 @@ export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoggedIn]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/songwars/event", { credentials: "include", cache: "no-store" })
+      .then(async (r) => {
+        try {
+          const j = (await r.json()) as {
+            available?: boolean;
+            comingSoon?: boolean;
+            event?: unknown;
+            noActiveEvent?: boolean;
+          };
+          if (cancelled) return;
+          const ok =
+            r.ok &&
+            j.available !== false &&
+            !j.comingSoon &&
+            (Boolean(j.event) || Boolean(j.noActiveEvent));
+          setSongWarsNavVisible(ok);
+        } catch {
+          if (!cancelled) setSongWarsNavVisible(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setSongWarsNavVisible(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-border/50 bg-[#0A0A0A]/90 backdrop-blur-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -142,6 +173,15 @@ export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
           <div className="hidden md:flex items-center gap-8">
             {!isLoggedIn ? (
               <>
+                {songWarsNavVisible ? (
+                  <Link
+                    href="/#song-wars"
+                    className="inline-flex items-center gap-2 rounded-full border border-[#FF6B00]/40 bg-[#FF6B00]/10 px-3 py-1 text-sm font-semibold text-[#FFB86C] hover:bg-[#FF6B00]/20 hover:border-[#FF6B00]/60 transition-colors"
+                  >
+                    <Trophy className="h-4 w-4" />
+                    Song Wars
+                  </Link>
+                ) : null}
                 <Link
                   href="/app"
                   className="text-[#A0A0A0] hover:text-[#00FF94] transition-colors"
@@ -167,6 +207,14 @@ export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
                   Pricing
                 </Link>
               </>
+            ) : songWarsNavVisible ? (
+              <Link
+                href="/app/songwars"
+                className="inline-flex items-center gap-2 rounded-full border border-[#FF6B00]/40 bg-[#FF6B00]/10 px-3 py-1 text-sm font-semibold text-[#FFB86C] hover:bg-[#FF6B00]/20 hover:border-[#FF6B00]/60 transition-colors"
+              >
+                <Trophy className="h-4 w-4" />
+                Song Wars
+              </Link>
             ) : null}
           </div>
 
@@ -307,6 +355,16 @@ export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-border/50 bg-[#0A0A0A] backdrop-blur-lg">
           <div className="px-4 py-4 space-y-3">
+            {songWarsNavVisible ? (
+              <Link
+                href={isLoggedIn ? "/app/songwars" : "/#song-wars"}
+                className="flex items-center gap-2 rounded-xl border border-[#FF6B00]/35 bg-[#FF6B00]/10 px-3 py-3 text-[#FFB86C] font-semibold"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                <Trophy className="h-4 w-4 shrink-0" />
+                Song Wars
+              </Link>
+            ) : null}
             <Link
               href="/app"
               className="block text-[#A0A0A0] hover:text-[#00FF94] transition-colors py-2"

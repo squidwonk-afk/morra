@@ -17,10 +17,6 @@ import { jsonError, jsonOk } from "@/lib/http";
 
 export const runtime = "nodejs";
 
-function utcDateString(d = new Date()): string {
-  return d.toISOString().slice(0, 10);
-}
-
 export async function GET() {
   if (!isSupabaseConfigured()) {
     return jsonError("Server is not configured.", 503);
@@ -57,6 +53,12 @@ export async function GET() {
     .select("xp, level, streak, last_active_date, last_claim_date")
     .eq("user_id", userId)
     .single();
+
+  const { data: dashState } = await supabase
+    .from("user_dashboard_state")
+    .select("last_claimed_at")
+    .eq("user_id", userId)
+    .maybeSingle();
 
   const { data: cred } = await supabase
     .from(T.userCredits)
@@ -147,9 +149,13 @@ export async function GET() {
     referralRewardRows?.reduce((sum, r) => sum + (Number((r as { credits?: number | null }).credits) || 0), 0) ??
     0;
 
-  const today = utcDateString();
-  const dailyBonusClaimed =
-    ((xpUser as { last_claim_date?: string | null } | null)?.last_claim_date ?? null) === today;
+  const TWENTY_FOUR_H_MS = 24 * 60 * 60 * 1000;
+  const lastClaimedAt = (dashState as { last_claimed_at?: string | null } | null)?.last_claimed_at ?? null;
+  const lastMs = lastClaimedAt ? new Date(lastClaimedAt).getTime() : 0;
+  const nowMs = Date.now();
+  const onDailyCooldown = Number.isFinite(lastMs) && lastMs > 0 && nowMs - lastMs < TWENTY_FOUR_H_MS;
+  const nextDailyClaimAt =
+    onDailyCooldown && lastMs > 0 ? new Date(lastMs + TWENTY_FOUR_H_MS).toISOString() : null;
 
   const bestLevel = Math.floor(xp / 100) + 1;
   const currentLevelXP = Math.floor(xp / 100) * 100;
@@ -209,6 +215,10 @@ export async function GET() {
       pendingEarningsCents: pendingReferralCents,
       nextPendingReleaseAt,
     },
-    dailyBonus: { claimedToday: dailyBonusClaimed },
+    dailyBonus: {
+      canClaim: !onDailyCooldown,
+      nextClaimAt: nextDailyClaimAt,
+      cooldownMs: onDailyCooldown && lastMs > 0 ? Math.max(0, lastMs + TWENTY_FOUR_H_MS - nowMs) : 0,
+    },
   });
 }

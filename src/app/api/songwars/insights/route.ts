@@ -1,7 +1,12 @@
 import { getSessionUserId } from "@/lib/auth/request-user";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
-import { ensureActiveEvent, getSongWarInsightsForUser } from "@/lib/songwars/service";
+import { isSongwarsUnavailableError } from "@/lib/songwars/availability";
+import {
+  ensureActiveEvent,
+  getSongWarInsightsForUser,
+  SongWarsNoActiveEventError,
+} from "@/lib/songwars/service";
 
 export const runtime = "nodejs";
 
@@ -14,8 +19,14 @@ export async function GET() {
     const supabase = getSupabaseAdmin();
     const event = await ensureActiveEvent(supabase);
     const insights = await getSongWarInsightsForUser(supabase, userId, event.id as string);
-    return jsonOk({ insights });
+    return jsonOk({ available: true, insights });
   } catch (e) {
+    if (isSongwarsUnavailableError(e)) {
+      return jsonOk({ available: false, comingSoon: true, insights: [] });
+    }
+    if (e instanceof SongWarsNoActiveEventError) {
+      return jsonOk({ available: true, noActiveEvent: true, insights: [] });
+    }
     const msg = e instanceof Error ? e.message : "Could not load insights.";
     return jsonError(msg, 500);
   }

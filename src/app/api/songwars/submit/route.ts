@@ -3,7 +3,8 @@ import { z } from "zod";
 import { getSessionUserId } from "@/lib/auth/request-user";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
-import { submitSongwarsTrack } from "@/lib/songwars/service";
+import { isSongwarsUnavailableError } from "@/lib/songwars/availability";
+import { submitSongwarsTrack, SongWarsNoActiveEventError } from "@/lib/songwars/service";
 
 export const runtime = "nodejs";
 
@@ -30,6 +31,12 @@ export async function POST(req: NextRequest) {
     const out = await submitSongwarsTrack(getSupabaseAdmin(), userId, body);
     return jsonOk(out);
   } catch (e) {
+    if (isSongwarsUnavailableError(e)) {
+      return jsonError("Song Wars is not available yet.", 503);
+    }
+    if (e instanceof SongWarsNoActiveEventError) {
+      return jsonError("No active Song Wars event yet.", 409);
+    }
     const msg = e instanceof Error ? e.message : "Submit failed.";
     return jsonError(msg, 400);
   }

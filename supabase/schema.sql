@@ -78,14 +78,16 @@ create table if not exists public.referrals (
 
 create index if not exists idx_referrals_referrer on public.referrals (referrer_id);
 
--- XP / level / streak
-create table if not exists public.xp_levels (
-  user_id uuid primary key references public.users (id) on delete cascade,
-  xp integer not null default 0 check (xp >= 0),
-  level integer not null default 1 check (level >= 1),
-  streak integer not null default 0 check (streak >= 0),
-  last_active_utc_date date
+-- Level curve for rewards (min XP per level); per-user XP/streak in public.user_xp (app).
+create table if not exists public.level_thresholds (
+  level integer primary key check (level >= 1),
+  xp_required integer not null check (xp_required >= 0)
 );
+
+insert into public.level_thresholds (level, xp_required)
+select g, (g - 1) * 100
+from generate_series(1, 500) as g
+on conflict (level) do nothing;
 
 -- Reward triggers and grants (level-ups, referrals, daily bonus, etc.)
 create table if not exists public.reward_events (
@@ -107,15 +109,13 @@ create unique index if not exists reward_events_daily_login_one_per_utc_day
   )
   where trigger_type = 'daily_login';
 
-comment on column public.xp_levels.last_active_utc_date is 'UTC calendar date (YYYY-MM-DD) of last activity used for streak; updated on successful tool generation.';
-
 -- Optional: enable RLS and deny anon — app uses service role on server only
 alter table public.users enable row level security;
 alter table public.credits enable row level security;
 alter table public.usage_logs enable row level security;
 alter table public.generations enable row level security;
 alter table public.referrals enable row level security;
-alter table public.xp_levels enable row level security;
+alter table public.level_thresholds enable row level security;
 alter table public.reward_events enable row level security;
 
 -- Stripe subscriptions (idempotent webhooks)
@@ -213,20 +213,20 @@ declare
   v_new integer;
 begin
   if p_delta = 0 then
-    select xp into v_new from public.xp_levels where user_id = p_user_id;
+    select xp into v_new from public.user_xp where user_id = p_user_id;
     if v_new is null then
-      raise exception 'xp_levels row missing for user %', p_user_id;
+      raise exception 'user_xp row missing for user %', p_user_id;
     end if;
     return v_new;
   end if;
 
-  update public.xp_levels
+  update public.user_xp
   set xp = xp + p_delta
   where user_id = p_user_id
   returning xp into v_new;
 
   if v_new is null then
-    raise exception 'xp_levels row missing for user %', p_user_id;
+    raise exception 'user_xp row missing for user %', p_user_id;
   end if;
 
   return v_new;

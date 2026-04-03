@@ -55,6 +55,9 @@ function trustLabelFromDisagreement(disagreement: number): string {
 type StandingStatus = "pending" | "qualifying" | "eliminated" | "finalist" | "winner";
 
 type EventPayload = {
+  available?: boolean;
+  comingSoon?: boolean;
+  noActiveEvent?: boolean;
   event: {
     id: string;
     title: string;
@@ -166,6 +169,8 @@ export function SongWars() {
   const { me, refresh } = useMorraUser();
   const viewedResultsLoggedRef = useRef(false);
   const [payload, setPayload] = useState<EventPayload | null>(null);
+  const [featureUnavailable, setFeatureUnavailable] = useState(false);
+  const [emptyEvent, setEmptyEvent] = useState(false);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [joinBusy, setJoinBusy] = useState(false);
   const [submitBusy, setSubmitBusy] = useState(false);
@@ -177,11 +182,22 @@ export function SongWars() {
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/songwars/event", { credentials: "include", cache: "no-store" });
-      const j = (await r.json()) as EventPayload & { ok?: boolean; error?: string };
-      if (!r.ok) {
-        setLoadErr(j.error || "Could not load");
+      const j = (await r.json()) as EventPayload & { ok?: boolean; error?: string; event?: EventPayload["event"] | null };
+      if (!r.ok || j.available === false || j.comingSoon) {
+        setFeatureUnavailable(true);
+        setEmptyEvent(false);
+        setLoadErr(null);
+        setPayload(null);
         return;
       }
+      setFeatureUnavailable(false);
+      if (j.noActiveEvent || !j.event) {
+        setEmptyEvent(true);
+        setLoadErr(null);
+        setPayload(null);
+        return;
+      }
+      setEmptyEvent(false);
       setLoadErr(null);
       const next = j as EventPayload;
       setPayload((prev) => {
@@ -189,7 +205,10 @@ export function SongWars() {
         return next;
       });
     } catch {
-      setLoadErr("Network error");
+      setFeatureUnavailable(false);
+      setEmptyEvent(false);
+      setLoadErr("Something went wrong. Please try again.");
+      setPayload(null);
     }
   }, []);
 
@@ -227,8 +246,18 @@ export function SongWars() {
           credentials: "include",
           cache: "no-store",
         });
-        const j = (await r.json()) as { insights?: SongWarInsightPayload[]; error?: string };
+        const j = (await r.json()) as {
+          insights?: SongWarInsightPayload[];
+          error?: string;
+          available?: boolean;
+          comingSoon?: boolean;
+        };
         if (cancelled) return;
+        if (j.available === false || j.comingSoon) {
+          setInsightsErr(null);
+          setInsights(null);
+          return;
+        }
         if (!r.ok) {
           setInsightsErr(j.error || "Could not load AI breakdown");
           setInsights(null);
@@ -360,6 +389,38 @@ export function SongWars() {
     ? payload?.rules?.prizeCreditsPaid ?? [600, 300, 150]
     : payload?.rules?.prizeCreditsFree ?? [300, 150, 75];
 
+  if (featureUnavailable) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20 px-4">
+        <Trophy className="mx-auto text-[#00FF94] mb-4" size={48} />
+        <h1 className="text-3xl font-bold text-white mb-2">Song Wars</h1>
+        <p className="text-[#A0A0A0] mb-8">Coming soon</p>
+        <p className="text-sm text-[#707070] mb-8 leading-relaxed">
+          This competition isn&apos;t available in your environment yet (data not configured). Check back later.
+        </p>
+        <Link href="/app" className="text-[#00FF94] hover:underline font-medium">
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
+
+  if (emptyEvent) {
+    return (
+      <div className="max-w-lg mx-auto text-center py-20 px-4">
+        <Trophy className="mx-auto text-[#00FF94] mb-4" size={48} />
+        <h1 className="text-3xl font-bold text-white mb-2">Song Wars</h1>
+        <p className="text-xl text-[#E0E0E0] mb-3">No active events yet</p>
+        <p className="text-sm text-[#707070] leading-relaxed">
+          When the next tournament opens, you&apos;ll be able to join and submit tracks from this page.
+        </p>
+        <Link href="/app" className="inline-block mt-10 text-[#00FF94] hover:underline font-medium">
+          Back to dashboard
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-10">
@@ -375,7 +436,11 @@ export function SongWars() {
         </p>
       </div>
 
-      {loadErr ? <p className="text-red-400 mb-6">{loadErr}</p> : null}
+      {loadErr ? (
+        <p className="text-[#E0A0A0] mb-6 rounded-xl border border-[#FF6B00]/25 bg-[#FF6B00]/10 px-4 py-3 text-sm">
+          {loadErr}
+        </p>
+      ) : null}
 
       {payload?.lastEvent?.winners?.length ? (
         <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-[#00FF94]/10 to-[#9BFF00]/8 border border-[#00FF94]/35">

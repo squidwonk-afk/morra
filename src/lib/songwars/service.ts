@@ -19,8 +19,17 @@ import {
   type SongWarJudgeType,
   type SongwarsJudgeKey,
 } from "@/lib/songwars/constants";
+import { isSongwarsUnavailableError } from "@/lib/songwars/availability";
 import { runFourJudges } from "@/lib/songwars/judge-ai";
 import { validateTrackUrl } from "@/lib/songwars/urls";
+
+/** Insert/select failed in a non-schema way (e.g. RLS) — show “no active events” instead of 500. */
+export class SongWarsNoActiveEventError extends Error {
+  constructor(message = "No active Song Wars event.") {
+    super(message);
+    this.name = "SongWarsNoActiveEventError";
+  }
+}
 
 export type SongwarsEventRow = {
   id: string;
@@ -86,13 +95,18 @@ async function isPaidUser(supabase: SupabaseClient, userId: string): Promise<boo
 }
 
 export async function ensureActiveEvent(supabase: SupabaseClient): Promise<SongwarsEventRow> {
-  const { data: existing } = await supabase
+  const { data: existing, error: selErr } = await supabase
     .from("songwars_events")
     .select("*")
     .in("status", ["submissions_open", "judging"])
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
+
+  if (selErr) {
+    if (isSongwarsUnavailableError(selErr)) throw selErr;
+    throw new Error(selErr.message || "Could not read Song Wars events.");
+  }
 
   if (existing) return existing as SongwarsEventRow;
 
@@ -117,7 +131,8 @@ export async function ensureActiveEvent(supabase: SupabaseClient): Promise<Songw
     .single();
 
   if (error || !created) {
-    throw new Error(error?.message || "Could not create Song Wars event.");
+    if (isSongwarsUnavailableError(error)) throw error;
+    throw new SongWarsNoActiveEventError(error?.message || "Could not create Song Wars event.");
   }
 
   await promoteWaitlistToEvent(supabase, created.id as string, created.max_participants as number);

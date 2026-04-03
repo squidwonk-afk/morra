@@ -48,10 +48,11 @@ export function Signup() {
     setBusy(true);
     try {
       const codeRaw = referralCode.trim().toLowerCase();
-      const payload: Record<string, string> = {
+      const payload: Record<string, string | boolean> = {
         username: formData.username.trim().toLowerCase(),
         displayName: formData.displayName.trim(),
         pin: formData.pin,
+        termsAccepted: true,
       };
       if (codeRaw.length >= 4) {
         payload.referralCode = codeRaw;
@@ -188,30 +189,41 @@ export function Signup() {
               />
             </div>
 
-            <div className="flex items-start gap-3 rounded-lg border border-[#00FF94]/20 bg-[#0A0A0A]/80 p-4">
+            <label
+              htmlFor="terms"
+              className="flex items-start gap-4 rounded-xl border border-[#00FF94]/25 bg-[#0A0A0A]/90 p-4 sm:p-5 cursor-pointer select-none hover:border-[#00FF94]/40 transition-colors"
+            >
               <Checkbox
                 id="terms"
                 checked={agreedTerms}
                 onCheckedChange={(v) => setAgreedTerms(v === true)}
-                className="mt-1 border-[#00FF94]/50 data-[state=checked]:bg-[#00FF94] data-[state=checked]:text-[#0A0A0A]"
+                className="mt-0.5 h-6 w-6 min-h-6 min-w-6 rounded-md border-2 border-[#00FF94]/55 data-[state=checked]:bg-[#00FF94] data-[state=checked]:border-[#00FF94] data-[state=checked]:text-[#0A0A0A] [&_[data-slot=checkbox-indicator]_svg]:size-4"
               />
-              <Label htmlFor="terms" className="text-sm text-[#E0E0E0] font-normal leading-snug cursor-pointer">
-                I agree to the{" "}
-                <Link href="/terms" className="text-[#00FF94] hover:underline font-medium">
+              <span className="text-sm sm:text-base text-[#E8E8E8] font-normal leading-relaxed">
+                I have read and agree to the{" "}
+                <Link
+                  href="/terms"
+                  className="text-[#00FF94] hover:underline font-semibold"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   Terms of Service
                 </Link>{" "}
                 and{" "}
-                <Link href="/privacy" className="text-[#00FF94] hover:underline font-medium">
+                <Link
+                  href="/privacy"
+                  className="text-[#00FF94] hover:underline font-semibold"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   Privacy Policy
                 </Link>
                 .
-              </Label>
-            </div>
+              </span>
+            </label>
 
             <Button
               type="submit"
-              disabled={busy}
-              className="w-full bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90 shadow-[0_0_20px_rgba(0,255,148,0.3)] hover:shadow-[0_0_30px_rgba(0,255,148,0.5)] transition-all"
+              disabled={busy || !agreedTerms}
+              className="w-full bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90 shadow-[0_0_20px_rgba(0,255,148,0.3)] hover:shadow-[0_0_30px_rgba(0,255,148,0.5)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {busy ? "Creating…" : "Create Identity"}
             </Button>

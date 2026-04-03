@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logMorraWarn } from "@/lib/logging";
 import { addCreditsOptimistic } from "@/lib/credits/optimistic-balance";
-import { referralTierFromCount, TIER_PERCENT_BPS } from "@/lib/referral/tiers";
+import { referralTierFromCount } from "@/lib/referral/tiers";
 import { countActiveValidatedReferrals } from "@/lib/referral/referral-counts";
 
 const MILESTONES = [
@@ -66,24 +66,6 @@ export async function resolveValidatedReferrerForPayer(
   if (uErr || !referrer || referrer.flagged) return null;
 
   return { referrerId };
-}
-
-async function insertGrowthEarningRow(
-  supabase: SupabaseClient,
-  row: {
-    referrer_id: string;
-    referred_user_id: string;
-    source: string;
-    amount_cents: number;
-    idempotency_key: string;
-    tier_at_accrual: number;
-  }
-): Promise<boolean> {
-  const { error } = await supabase.from("referral_earnings").insert(row);
-  if (!error) return true;
-  if (error.code === "23505") return false;
-  logMorraWarn("stripe_webhook", "referral_earnings_insert_failed", { detail: error.message });
-  return false;
 }
 
 async function syncReferralStatsForReferrer(supabase: SupabaseClient, referrerId: string): Promise<void> {
@@ -201,59 +183,12 @@ async function afterNewGrowthEarning(supabase: SupabaseClient, referrerId: strin
   await tryGrantReferralMilestones(supabase, referrerId);
 }
 
-/** Call after referral revenue accrual is committed to pending balance (invoice path). */
-export async function recordReferralGrowthFromInvoiceAccrual(
+/** After a new row in referral_earnings (via process_referral_earning RPC). */
+export async function syncReferralGrowthAfterEarning(
   supabase: SupabaseClient,
-  args: {
-    referrerId: string;
-    referredUserId: string;
-    amountCents: number;
-    invoiceId: string;
-    tier: number;
-  }
+  referrerId: string
 ): Promise<void> {
-  if (args.amountCents <= 0) return;
-  const idempotencyKey = `stripe_invoice:${args.invoiceId}`;
-  const ok = await insertGrowthEarningRow(supabase, {
-    referrer_id: args.referrerId,
-    referred_user_id: args.referredUserId,
-    source: "subscription_invoice",
-    amount_cents: args.amountCents,
-    idempotency_key: idempotencyKey,
-    tier_at_accrual: args.tier,
-  });
-  if (ok) await afterNewGrowthEarning(supabase, args.referrerId);
-}
-
-/** Credit-pack checkout: same tier % as subscription share; idempotent per Checkout Session. */
-export async function recordReferralGrowthFromCreditPackCheckout(
-  supabase: SupabaseClient,
-  args: {
-    payerUserId: string;
-    amountPaidCents: number;
-    checkoutSessionId: string;
-  }
-): Promise<void> {
-  if (args.amountPaidCents <= 0) return;
-  const resolved = await resolveValidatedReferrerForPayer(supabase, args.payerUserId);
-  if (!resolved) return;
-
-  const activeCount = await countActiveValidatedReferrals(supabase, resolved.referrerId);
-  const tier = referralTierFromCount(activeCount);
-  const bps = TIER_PERCENT_BPS[tier];
-  const commissionCents = Math.floor((args.amountPaidCents * bps) / 10_000);
-  if (commissionCents <= 0) return;
-
-  const idempotencyKey = `checkout_session:${args.checkoutSessionId}`;
-  const ok = await insertGrowthEarningRow(supabase, {
-    referrer_id: resolved.referrerId,
-    referred_user_id: args.payerUserId,
-    source: "credits_checkout",
-    amount_cents: commissionCents,
-    idempotency_key: idempotencyKey,
-    tier_at_accrual: tier,
-  });
-  if (ok) await afterNewGrowthEarning(supabase, resolved.referrerId);
+  await afterNewGrowthEarning(supabase, referrerId);
 }
 
 export type ReferralEngagementApi = {

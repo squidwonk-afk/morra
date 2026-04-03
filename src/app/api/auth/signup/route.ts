@@ -22,6 +22,8 @@ const bodySchema = z.object({
   pin: pinSchema,
   referralCode: referralCodeSchema,
   deviceId: z.string().max(128).optional(),
+  /** Required. Signup is rejected if not exactly true (no exceptions). */
+  termsAccepted: z.literal(true),
 });
 
 export async function POST(req: NextRequest) {
@@ -38,7 +40,15 @@ export async function POST(req: NextRequest) {
   let body: z.infer<typeof bodySchema>;
   try {
     const raw = await req.json();
-    body = bodySchema.parse(raw);
+    const parsed = bodySchema.safeParse(raw);
+    if (!parsed.success) {
+      const termsErr = parsed.error.flatten().fieldErrors.termsAccepted;
+      if (termsErr?.length) {
+        return jsonError("You must accept the Terms of Service and Privacy Policy.", 400);
+      }
+      return jsonError("Invalid request body.", 400);
+    }
+    body = parsed.data;
   } catch {
     return jsonError("Invalid request body.", 400);
   }

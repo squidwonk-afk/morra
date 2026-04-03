@@ -12,6 +12,7 @@ import {
   Check,
   ArrowRight,
 } from "lucide-react";
+import { SongWarsLandingHero } from "@/components/landing/SongWarsLandingHero";
 import { useMorraUser } from "@/contexts/MorraUserContext";
 import { useMorraCheckout } from "@/hooks/use-morra-checkout";
 import { PLAN_FEATURE_BULLETS, PLANS, PLAN_KEYS, type PlanKey } from "@/lib/pricing";
@@ -74,34 +75,37 @@ export function Landing() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#00FF94]/5 to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-32 relative">
-          <div className="text-center max-w-4xl mx-auto">
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-to-r from-white via-[#00FF94] to-[#9BFF00] bg-clip-text text-transparent animate-in fade-in slide-in-from-bottom-4 duration-1000 pb-2">
-              Your Creative Intelligence Engine
-            </h1>
-            <p className="text-xl md:text-2xl text-[#A0A0A0] mb-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-200">
-              Build your identity. Plan your drops. Level up your art.
+      <SongWarsLandingHero />
+
+      {/* Platform tagline — MORRA as the OS behind Song Wars + tools */}
+      <section id="morra-platform" className="relative overflow-hidden scroll-mt-24 border-b border-[#00FF94]/10">
+        <div className="absolute inset-0 bg-gradient-to-b from-[#00FF94]/8 to-transparent pointer-events-none" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 md:py-28 relative">
+          <div className="text-center max-w-3xl mx-auto">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#00FF94]/80 mb-4">MORRA</p>
+            <h2 className="text-4xl md:text-5xl font-bold mb-5 bg-gradient-to-r from-white via-[#00FF94] to-[#9BFF00] bg-clip-text text-transparent">
+              Your creative intelligence engine
+            </h2>
+            <p className="text-lg md:text-xl text-[#A0A0A0] mb-10">
+              Song Wars runs here — and so do your bios, rollouts, lyrics, covers, and collabs. One platform for the whole pipeline.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/signup">
-                <Button 
-                  size="lg" 
+                <Button
+                  size="lg"
                   className="bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90 shadow-[0_0_30px_rgba(0,255,148,0.4)] hover:shadow-[0_0_40px_rgba(0,255,148,0.6)] transition-all text-lg px-8"
                 >
-                  Start Free with Daily Access
+                  Start free
                   <ArrowRight className="ml-2" size={20} />
                 </Button>
               </Link>
-              <Link href="/app">
-                <Button 
-                  size="lg" 
+              <Link href={loggedIn ? "/app" : "/login"}>
+                <Button
+                  size="lg"
                   variant="outline"
                   className="border-[#00FF94]/30 text-[#00FF94] hover:bg-[#00FF94]/10 hover:border-[#00FF94] text-lg px-8"
                 >
-                  See Demo
+                  {loggedIn ? "Open dashboard" : "Log in"}
                 </Button>
               </Link>
             </div>

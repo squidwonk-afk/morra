@@ -1,105 +1,108 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logMorraWarn } from "@/lib/logging";
+import {
+  resolveValidatedReferrerForPayer,
+  syncReferralGrowthAfterEarning,
+} from "@/lib/referral/growth-engine";
+
+export type ProcessReferralEarningArgs = {
+  referrerId: string;
+  referredUserId: string;
+  /** Gross payment in USD (commission is derived in DB from tier %). */
+  grossAmountUsd: number;
+  idempotencyKey: string;
+  source: string;
+};
 
 /**
- * Calls DB function `process_referral_earning` if present (parameter names vary by migration).
- * Safe no-op when the RPC is missing or returns an error.
+ * DB validates profiles.referred_by = referrerId, blocks self-referral, requires active+validated referral.
+ * Duplicate idempotency_key is ignored (returns false).
  */
-export async function tryProcessReferralEarning(
+export async function runProcessReferralEarning(
   supabase: SupabaseClient,
-  args: {
-    userId: string;
-    amountPaidUsd: number;
-    kind: "subscription" | "credits";
-    planOrPackage: string;
-    eventId: string;
-  }
-): Promise<void> {
-  const payloads: Record<string, unknown>[] = [
-    {
-      user_id: args.userId,
-      amount_paid: args.amountPaidUsd,
-      payment_kind: args.kind,
-      plan: args.planOrPackage,
-      event_id: args.eventId,
-    },
-    {
-      p_user_id: args.userId,
-      p_amount_paid: args.amountPaidUsd,
-      p_payment_kind: args.kind,
-      p_plan: args.planOrPackage,
-      p_event_id: args.eventId,
-    },
-    {
-      p_user_id: args.userId,
-      p_amount_paid: args.amountPaidUsd,
-      p_kind: args.kind,
-      p_plan: args.planOrPackage,
-      p_event_id: args.eventId,
-    },
-  ];
+  args: ProcessReferralEarningArgs
+): Promise<boolean> {
+  if (args.grossAmountUsd <= 0 || !args.idempotencyKey.trim()) return false;
 
-  for (const p of payloads) {
-    const { error } = await supabase.rpc("process_referral_earning", p);
-    if (!error) return;
-    if (!/function .* does not exist|Could not find the function/i.test(error.message)) {
-      logMorraWarn("stripe_webhook", "process_referral_earning_rpc_error", {
-        detail: error.message,
-      });
-      return;
-    }
+  const { data, error } = await supabase.rpc("process_referral_earning", {
+    p_referrer_id: args.referrerId,
+    p_amount_usd: args.grossAmountUsd,
+    p_referred_user_id: args.referredUserId,
+    p_idempotency_key: args.idempotencyKey,
+    p_source: args.source,
+  });
+
+  if (error) {
+    logMorraWarn("stripe_webhook", "process_referral_earning_rpc_error", {
+      detail: error.message,
+    });
+    return false;
   }
+
+  return Boolean(data);
 }
 
-/** Calls handle_referral_payment(user_id, amount, kind, credits). */
-export async function tryHandleReferralPayment(
+export async function runProcessReferralEarningWithSync(
   supabase: SupabaseClient,
-  args: {
-    userId: string;
-    amountPaidUsd: number;
-    kind: "subscription" | "credits";
-    creditsGranted: number;
+  args: ProcessReferralEarningArgs
+): Promise<boolean> {
+  const inserted = await runProcessReferralEarning(supabase, args);
+  if (inserted) {
+    await syncReferralGrowthAfterEarning(supabase, args.referrerId);
   }
-): Promise<void> {
-  const payloads: Record<string, unknown>[] = [
-    {
-      user_id: args.userId,
-      amount: args.amountPaidUsd,
-      payment_type: args.kind,
-      credits: args.creditsGranted,
-    },
-    {
-      p_user_id: args.userId,
-      p_amount: args.amountPaidUsd,
-      p_payment_type: args.kind,
-      p_credits: args.creditsGranted,
-    },
-  ];
-  for (const p of payloads) {
-    const { error } = await supabase.rpc("handle_referral_payment", p);
-    if (!error) return;
-    if (!/function .* does not exist|Could not find the function/i.test(error.message)) {
-      logMorraWarn("stripe_webhook", "handle_referral_payment_rpc_error", {
-        detail: error.message,
-      });
-      return;
-    }
-  }
+  return inserted;
 }
 
-/** Reward referrer on first paid subscription (DB handles idempotency). */
-export async function tryRewardFirstSubscription(
+/**
+ * Resolves referrer from profiles.referred_by (same rules as revenue share), then records earnings + syncs leaderboard.
+ */
+export async function runProcessReferralEarningForPayerWithSync(
   supabase: SupabaseClient,
-  userId: string
-): Promise<void> {
-  for (const payload of [{ user_id: userId }, { p_user_id: userId }] as const) {
-    const { error } = await supabase.rpc("reward_first_subscription", payload);
-    if (!error) return;
-    if (!/function .* does not exist|Could not find the function/i.test(error.message)) {
-      logMorraWarn("stripe_webhook", "reward_first_subscription_rpc_error", {
-        detail: error.message,
-      });
-      return;
-    }
+  payerUserId: string,
+  grossAmountUsd: number,
+  idempotencyKey: string,
+  source: string
+): Promise<boolean> {
+  const resolved = await resolveValidatedReferrerForPayer(supabase, payerUserId);
+  if (!resolved) return false;
+  return runProcessReferralEarningWithSync(supabase, {
+    referrerId: resolved.referrerId,
+    referredUserId: payerUserId,
+    grossAmountUsd,
+    idempotencyKey,
+    source,
+  });
+}
+
+/**
+ * First-subscription bonus row (idempotent per referred user). DB validates referred_by and referral row
+ * (pending allowed; not invalid / not ip_suspected).
+ */
+export async function runRewardFirstSubscription(
+  supabase: SupabaseClient,
+  referredUserId: string
+): Promise<boolean> {
+  const { data: payer, error: pErr } = await supabase
+    .from("profiles")
+    .select("referred_by")
+    .eq("id", referredUserId)
+    .single();
+  if (pErr || !payer?.referred_by) return false;
+
+  const referrerId = String(payer.referred_by ?? "").trim();
+  if (!referrerId || referrerId === referredUserId) return false;
+
+  const { data, error } = await supabase.rpc("reward_first_subscription", {
+    p_referrer_id: referrerId,
+    p_referred_user_id: referredUserId,
+  });
+
+  if (error) {
+    logMorraWarn("stripe_webhook", "reward_first_subscription_rpc_error", {
+      detail: error.message,
+    });
+    return false;
   }
+
+  return Boolean(data);
 }

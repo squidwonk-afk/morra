@@ -7,7 +7,7 @@ const LEVEL_UP_CREDITS = 150;
 
 async function getLevelForXp(supabase: SupabaseClient, xp: number): Promise<number> {
   const { data: rows, error } = await supabase
-    .from("xp_levels")
+    .from("level_thresholds")
     .select("level,xp_required")
     .order("level", { ascending: true });
   if (error || !rows || rows.length === 0) return 1;

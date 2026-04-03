@@ -12,12 +12,10 @@ import { grantCreditPackPurchase } from "@/lib/stripe/grant-credit-pack";
 import { grantMonthlySubscriptionCredits } from "@/lib/stripe/grant-monthly-credits";
 import { tryGrantReferralSubscriptionBonus } from "@/lib/referral/activation";
 import {
-  tryHandleReferralPayment,
-  tryProcessReferralEarning,
-  tryRewardFirstSubscription,
+  runProcessReferralEarningForPayerWithSync,
+  runRewardFirstSubscription,
 } from "@/lib/referral/stripe-earnings-rpc";
 import { accrueReferralRevenueFromSubscriptionInvoice } from "@/lib/referral/revenue-share";
-import { recordReferralGrowthFromCreditPackCheckout } from "@/lib/referral/growth-engine";
 import {
   clearSubscriptionAndSetFree,
   findUserIdByStripeCustomerId,
@@ -113,22 +111,7 @@ export async function processStripeWebhookEvent(
 
           await supabase.from(T.profiles).update(patch).eq("id", userId);
 
-          const centsTotal = session.amount_total ?? 0;
-          const amountPaidUsd = Number(centsTotal) / 100;
-          await tryProcessReferralEarning(supabase, {
-            userId,
-            amountPaidUsd,
-            kind: "subscription",
-            planOrPackage: planRaw,
-            eventId: event.id,
-          });
-          await tryHandleReferralPayment(supabase, {
-            userId,
-            amountPaidUsd,
-            kind: "subscription",
-            creditsGranted: 0,
-          });
-          await tryRewardFirstSubscription(supabase, userId);
+          await runRewardFirstSubscription(supabase, userId);
 
           await tryGrantReferralSubscriptionBonus(supabase, userId);
           await createNotification(
@@ -164,24 +147,13 @@ export async function processStripeWebhookEvent(
 
           const centsTotal = session.amount_total ?? 0;
           const amountPaidUsd = Number(centsTotal) / 100;
-          await tryProcessReferralEarning(supabase, {
+          await runProcessReferralEarningForPayerWithSync(
+            supabase,
             userId,
             amountPaidUsd,
-            kind: "credits",
-            planOrPackage: packRaw,
-            eventId: event.id,
-          });
-          await tryHandleReferralPayment(supabase, {
-            userId,
-            amountPaidUsd,
-            kind: "credits",
-            creditsGranted: credits,
-          });
-          await recordReferralGrowthFromCreditPackCheckout(supabase, {
-            payerUserId: userId,
-            amountPaidCents: Number(centsTotal),
-            checkoutSessionId: session.id,
-          });
+            `checkout_session:${session.id}`,
+            "credits_checkout"
+          );
         }
       });
       break;

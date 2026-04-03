@@ -35,7 +35,7 @@ type Dash = {
     windowHours?: number | null;
   };
   recentActivity?: { id: string; type: string; title: string; createdAt: string }[];
-  dailyBonus?: { claimedToday?: boolean };
+  dailyBonus?: { canClaim?: boolean; nextClaimAt?: string | null; cooldownMs?: number };
   xpLadder?: { level: number; xpRequired: number; unlocked: boolean; current: boolean }[];
 };
 
@@ -105,7 +105,14 @@ export function Dashboard() {
       const r = await fetch("/api/dashboard", { credentials: "include", cache: "no-store" });
       const j = (await r.json()) as Dash & { ok?: boolean; error?: string };
       if (!r.ok) {
-        setLoadError(j.error || "Could not load dashboard");
+        if (r.status === 401 && typeof window !== "undefined") {
+          const next = encodeURIComponent(
+            `${window.location.pathname}${window.location.search || ""}`
+          );
+          window.location.assign(`/login?next=${next}`);
+          return;
+        }
+        setLoadError("We couldn’t load your dashboard. Please try again.");
         return;
       }
       setLoadError(null);
@@ -158,7 +165,7 @@ export function Dashboard() {
     plan === "free" ? (dash?.freeTier?.generationsLast24h ?? 0) : 0;
   const freeCap = dash?.freeTier?.dailyCap ?? 1;
 
-  const canClaimDaily = !(dash?.dailyBonus?.claimedToday ?? false);
+  const canClaimDaily = dash?.dailyBonus?.canClaim === true;
   const userXP = dash?.xp?.xp ?? 0;
   const xpProgress = dash?.xpProgress;
 
@@ -249,6 +256,7 @@ export function Dashboard() {
       const j = (await r.json()) as {
         ok?: boolean;
         error?: string;
+        nextClaimAt?: string;
         xp?: number;
         newXP?: number;
         newLevel?: number;
@@ -258,6 +266,21 @@ export function Dashboard() {
         xpGained?: number;
       };
       if (!r.ok) {
+        const errNext = typeof j.nextClaimAt === "string" ? j.nextClaimAt : "";
+        if (errNext) {
+          setDash((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  dailyBonus: {
+                    canClaim: false,
+                    nextClaimAt: errNext,
+                    cooldownMs: Math.max(0, new Date(errNext).getTime() - Date.now()),
+                  },
+                }
+              : prev
+          );
+        }
         toast.error(j.error || "Could not apply daily bonus");
         return;
       }
@@ -266,6 +289,10 @@ export function Dashboard() {
       const lv = typeof j.newLevel === "number" ? j.newLevel : j.level;
       const st = typeof j.newStreak === "number" ? j.newStreak : j.streak;
       const gained = j.xpGained ?? 25;
+      const unlockAt =
+        typeof j.nextClaimAt === "string" && j.nextClaimAt
+          ? j.nextClaimAt
+          : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       if (typeof xpVal === "number") {
         setXpAnim(true);
         setDash((prev) => {
@@ -288,7 +315,11 @@ export function Dashboard() {
               streak: streakResolved,
             },
             xpProgress: xpProg,
-            dailyBonus: { claimedToday: true },
+            dailyBonus: {
+              canClaim: false,
+              nextClaimAt: unlockAt,
+              cooldownMs: Math.max(0, new Date(unlockAt).getTime() - Date.now()),
+            },
             xpLadder: prev.xpLadder.map((run) => ({
               ...run,
               unlocked: xpVal >= run.xpRequired,
@@ -343,7 +374,9 @@ export function Dashboard() {
         <DailyStreakWidget
           streak={dash?.xp?.streak ?? 0}
           onClaimReward={() => void handleClaimDailyReward()}
-          canClaim={canClaimDaily && !claimBusy}
+          canClaim={canClaimDaily}
+          nextClaimAt={dash?.dailyBonus?.nextClaimAt ?? null}
+          claimBusy={claimBusy}
         />
       </div>
 

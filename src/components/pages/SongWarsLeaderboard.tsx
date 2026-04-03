@@ -20,6 +20,7 @@ export function SongWarsLeaderboard() {
   const [rows, setRows] = useState<Row[]>([]);
   const [viewerUserId, setViewerUserId] = useState<string | undefined>(undefined);
   const [err, setErr] = useState<string | null>(null);
+  const [comingSoon, setComingSoon] = useState(false);
   const lastPayloadRef = useRef("");
 
   const fetchBoard = useCallback(async () => {
@@ -29,11 +30,22 @@ export function SongWarsLeaderboard() {
         leaderboard?: Row[];
         viewerUserId?: string;
         error?: string;
+        available?: boolean;
+        comingSoon?: boolean;
       };
       if (!r.ok) {
+        setComingSoon(false);
         setErr(j.error || "Could not load");
         return;
       }
+      if (j.available === false || j.comingSoon) {
+        setComingSoon(true);
+        setErr(null);
+        setRows([]);
+        setViewerUserId(j.viewerUserId);
+        return;
+      }
+      setComingSoon(false);
       setErr(null);
       const nextRows = j.leaderboard ?? [];
       const payloadKey = JSON.stringify({
@@ -46,6 +58,7 @@ export function SongWarsLeaderboard() {
       }
       setViewerUserId(j.viewerUserId);
     } catch {
+      setComingSoon(false);
       setErr("Network error");
     }
   }, []);
@@ -70,13 +83,19 @@ export function SongWarsLeaderboard() {
       </h1>
       <p className="text-[#A0A0A0] mb-8">Cumulative points across completed events. Updates when an event finishes.</p>
 
-      {err ? <p className="text-red-400">{err}</p> : null}
+      {comingSoon ? (
+        <p className="text-[#A0A0A0] text-center py-12 rounded-2xl border border-[#00FF94]/15 bg-[#121212]/50">
+          Coming soon — leaderboard data isn&apos;t available in this environment yet.
+        </p>
+      ) : null}
 
-      {!err && rows.length === 0 ? (
+      {!comingSoon && err ? <p className="text-red-400">{err}</p> : null}
+
+      {!comingSoon && !err && rows.length === 0 ? (
         <p className="text-[#707070]">No entries yet—be the first to compete.</p>
       ) : null}
 
-      {!err && top10.length > 0 ? (
+      {!comingSoon && !err && top10.length > 0 ? (
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xs uppercase tracking-[0.14em] text-[#00FF94]/90 font-semibold">Top 10</h2>
           <span className="text-[10px] text-[#707070]">Live refresh · ~{Math.round(POLL_MS / 1000)}s</span>

@@ -10,7 +10,7 @@ where n.nspname = 'public'
     'usage_logs',
     'generations',
     'referrals',
-    'xp_levels',
+    'level_thresholds',
     'reward_events',
     'referral_revenue_accruals',
     'connect_payouts',

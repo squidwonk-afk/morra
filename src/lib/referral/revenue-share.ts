@@ -6,7 +6,7 @@ import {
   referralTierFromCount,
   TIER_PERCENT_BPS,
 } from "@/lib/referral/tiers";
-import { recordReferralGrowthFromInvoiceAccrual } from "@/lib/referral/growth-engine";
+import { runProcessReferralEarningWithSync } from "@/lib/referral/stripe-earnings-rpc";
 import { countActiveValidatedReferrals } from "@/lib/referral/referral-counts";
 
 export { referralTierFromCount, TIER_PERCENT_BPS } from "@/lib/referral/tiers";
@@ -134,12 +134,13 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
       commissionCents,
     });
   } else {
-    await recordReferralGrowthFromInvoiceAccrual(supabase, {
+    const grossUsd = amountPaid / 100;
+    await runProcessReferralEarningWithSync(supabase, {
       referrerId,
       referredUserId: payerUserId,
-      amountCents: commissionCents,
-      invoiceId,
-      tier,
+      grossAmountUsd: grossUsd,
+      idempotencyKey: `stripe_invoice:${invoiceId}`,
+      source: "subscription_invoice",
     });
   }
 }

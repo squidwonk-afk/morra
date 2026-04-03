@@ -142,6 +142,7 @@ async function main(): Promise<void> {
         username: u1,
         displayName: "Smoke A",
         pin,
+        termsAccepted: true,
       }),
       jar: jarA,
     });
@@ -179,6 +180,7 @@ async function main(): Promise<void> {
         username: u1,
         displayName: "Dup",
         pin,
+        termsAccepted: true,
       }),
       jar: {},
     });
@@ -193,6 +195,7 @@ async function main(): Promise<void> {
         username: randUser(),
         displayName: "Same device",
         pin,
+        termsAccepted: true,
       }),
       jar: { ...jarA },
     });
@@ -215,6 +218,7 @@ async function main(): Promise<void> {
         displayName: "Smoke B",
         pin,
         referralCode: code,
+        termsAccepted: true,
       }),
       jar: jarB,
     });

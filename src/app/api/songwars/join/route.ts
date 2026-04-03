@@ -1,7 +1,8 @@
 import { getSessionUserId } from "@/lib/auth/request-user";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
-import { joinSongwars } from "@/lib/songwars/service";
+import { isSongwarsUnavailableError } from "@/lib/songwars/availability";
+import { joinSongwars, SongWarsNoActiveEventError } from "@/lib/songwars/service";
 
 export const runtime = "nodejs";
 
@@ -14,6 +15,12 @@ export async function POST() {
     const result = await joinSongwars(getSupabaseAdmin(), userId);
     return jsonOk(result);
   } catch (e) {
+    if (isSongwarsUnavailableError(e)) {
+      return jsonError("Song Wars is not available yet.", 503);
+    }
+    if (e instanceof SongWarsNoActiveEventError) {
+      return jsonError("No active Song Wars event yet.", 409);
+    }
     const msg = e instanceof Error ? e.message : "Could not join.";
     return jsonError(msg, 400);
   }

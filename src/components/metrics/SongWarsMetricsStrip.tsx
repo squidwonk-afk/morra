@@ -7,6 +7,8 @@ import { R1_ADVANCE_FRACTION } from "@/lib/songwars/constants";
 type StandingStatus = "pending" | "qualifying" | "eliminated" | "finalist" | "winner";
 
 type EventPayload = {
+  available?: boolean;
+  comingSoon?: boolean;
   event: {
     status: string;
     submissions_close_at: string;
@@ -48,7 +50,12 @@ export function SongWarsMetricsStrip() {
       try {
         const r = await fetch("/api/songwars/event", { credentials: "include", cache: "no-store" });
         const j = (await r.json()) as EventPayload & { ok?: boolean };
-        if (!cancelled && r.ok) setPayload(j);
+        if (cancelled) return;
+        if (r.ok && j.available !== false && !j.comingSoon && j.event) {
+          setPayload(j);
+        } else {
+          setPayload(null);
+        }
       } catch {
         if (!cancelled) setPayload(null);
       }

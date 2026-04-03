@@ -7,11 +7,25 @@ import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
 export const MORRA_USER_ID_HEADER = "x-morra-user-id";
 
 /**
- * API-only: rate limits + optional x-morra-user-id from verified morra_session.
- * Does not redirect or touch auth cookies (avoids logout/checkout loops).
+ * - `/app`, `/app/*`: require valid `morra_session` → otherwise redirect to `/login?next=…` (no dashboard flash).
+ * - `/api/*`: rate limits + optional x-morra-user-id from verified session.
+ * Does not touch auth cookies (avoids logout/checkout loops).
  */
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
+
+  if (path === "/app" || path.startsWith("/app/")) {
+    const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+    const session = await verifySessionToken(token);
+    if (!session?.userId) {
+      const login = new URL("/login", request.url);
+      const dest = `${path}${request.nextUrl.search || ""}`;
+      login.searchParams.set("next", dest);
+      return NextResponse.redirect(login);
+    }
+    return NextResponse.next();
+  }
+
   if (!path.startsWith("/api")) {
     return NextResponse.next();
   }
@@ -42,5 +56,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: ["/app", "/app/:path*", "/api/:path*"],
 };

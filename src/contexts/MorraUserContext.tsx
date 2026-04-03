@@ -45,6 +45,8 @@ export type MeResponse = {
 
 type Ctx = {
   me: MeResponse | null;
+  /** False until the first `/api/me` fetch finishes (avoids auth-modal flash). */
+  sessionResolved: boolean;
   refresh: () => Promise<void>;
 };
 
@@ -52,6 +54,7 @@ const MorraUserContext = createContext<Ctx | null>(null);
 
 export function MorraUserProvider({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [sessionResolved, setSessionResolved] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -67,6 +70,8 @@ export function MorraUserProvider({ children }: { children: ReactNode }) {
       }
     } catch {
       setMe(null);
+    } finally {
+      setSessionResolved(true);
     }
   }, []);
 
@@ -86,14 +91,14 @@ export function MorraUserProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
-  const value: Ctx = { me, refresh };
+  const value: Ctx = { me, sessionResolved, refresh };
   return <MorraUserContext.Provider value={value}>{children}</MorraUserContext.Provider>;
 }
 
 export function useMorraUser(): Ctx {
   const ctx = useContext(MorraUserContext);
   if (!ctx) {
-    return { me: null, refresh: async () => {} };
+    return { me: null, sessionResolved: true, refresh: async () => {} };
   }
   return ctx;
 }
