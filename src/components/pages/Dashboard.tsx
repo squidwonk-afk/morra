@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { formatDistanceToNow } from "date-fns";
+import {
+  cooldownMsFromNow,
+  formatDistanceToNowSafe,
+  toIsoStringOrNull,
+} from "@/lib/datetime/safe-date";
 import { DailyStreakWidget } from "@/components/DailyStreakWidget";
 import { DailyUsageTracker } from "@/components/DailyUsageTracker";
 import { LevelLadder } from "@/components/LevelLadder";
@@ -275,7 +279,7 @@ export function Dashboard() {
                   dailyBonus: {
                     canClaim: false,
                     nextClaimAt: errNext,
-                    cooldownMs: Math.max(0, new Date(errNext).getTime() - Date.now()),
+                    cooldownMs: cooldownMsFromNow(errNext),
                   },
                 }
               : prev
@@ -290,8 +294,9 @@ export function Dashboard() {
       const st = typeof j.newStreak === "number" ? j.newStreak : j.streak;
       const gained = j.xpGained ?? 25;
       const unlockAt =
-        typeof j.nextClaimAt === "string" && j.nextClaimAt
-          ? j.nextClaimAt
+        typeof j.nextClaimAt === "string" && j.nextClaimAt.trim()
+          ? toIsoStringOrNull(j.nextClaimAt) ??
+            new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       if (typeof xpVal === "number") {
         setXpAnim(true);
@@ -318,7 +323,7 @@ export function Dashboard() {
             dailyBonus: {
               canClaim: false,
               nextClaimAt: unlockAt,
-              cooldownMs: Math.max(0, new Date(unlockAt).getTime() - Date.now()),
+              cooldownMs: cooldownMsFromNow(unlockAt),
             },
             xpLadder: prev.xpLadder.map((run) => ({
               ...run,
@@ -455,7 +460,8 @@ export function Dashboard() {
               </p>
               {nextPendingReleaseAt && pendingEarningsCents > 0 ? (
                 <p className="text-xs text-[#707070] max-w-[220px] sm:ml-auto sm:text-right">
-                  Available in {formatDistanceToNow(new Date(nextPendingReleaseAt), { addSuffix: true })} (
+                  Available in{" "}
+                  {formatDistanceToNowSafe(nextPendingReleaseAt, { addSuffix: true })} (
                   ~10-day hold from accrual)
                 </p>
               ) : (
@@ -594,7 +600,7 @@ export function Dashboard() {
                 </div>
                 <div className="flex items-center text-[#A0A0A0] text-sm whitespace-nowrap">
                   <Clock size={16} className="mr-2" />
-                  {formatDistanceToNow(new Date(activity.createdAt), { addSuffix: true })}
+                  {formatDistanceToNowSafe(activity.createdAt, { addSuffix: true })}
                 </div>
               </div>
             );

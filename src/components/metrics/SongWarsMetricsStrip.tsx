@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Trophy } from "lucide-react";
+import { parseDate } from "@/lib/datetime/safe-date";
 import { isSongwarsSubmissionsPhaseStatus, R1_ADVANCE_FRACTION } from "@/lib/songwars/constants";
 
 type StandingStatus = "pending" | "qualifying" | "eliminated" | "finalist" | "winner";
@@ -28,12 +29,14 @@ type EventPayload = {
 };
 
 function msToShort(targetIso: string): string {
-  const t = new Date(targetIso).getTime() - Date.now();
+  const parsed = parseDate(targetIso);
+  if (!parsed) return "—";
+  const t = parsed.getTime() - Date.now();
   if (t <= 0) return "Ended";
-  const d = Math.floor(t / 86400000);
+  const days = Math.floor(t / 86400000);
   const h = Math.floor((t % 86400000) / 3600000);
   const m = Math.floor((t % 3600000) / 60000);
-  if (d > 0) return `${d}d ${h}h`;
+  if (days > 0) return `${days}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   return `${m}m`;
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Flame, Gift } from "lucide-react";
 import { Button } from "./ui/button";
 import { motion } from "motion/react";
+import { parseDate } from "@/lib/datetime/safe-date";
 import { XP_REWARDS } from "@/lib/gamification";
 
 function formatCooldown(ms: number): string {
@@ -22,7 +23,12 @@ function useCooldownCountdown(nextClaimAtIso: string | null | undefined, active:
       setRemainingMs(0);
       return;
     }
-    const target = new Date(nextClaimAtIso).getTime();
+    const parsed = parseDate(nextClaimAtIso);
+    if (!parsed) {
+      setRemainingMs(0);
+      return;
+    }
+    const target = parsed.getTime();
     const tick = () => setRemainingMs(Math.max(0, target - Date.now()));
     tick();
     const id = window.setInterval(tick, 1000);

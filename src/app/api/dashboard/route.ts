@@ -151,7 +151,8 @@ export async function GET() {
 
   const TWENTY_FOUR_H_MS = 24 * 60 * 60 * 1000;
   const lastClaimedAt = (dashState as { last_claimed_at?: string | null } | null)?.last_claimed_at ?? null;
-  const lastMs = lastClaimedAt ? new Date(lastClaimedAt).getTime() : 0;
+  const lastParsed = lastClaimedAt ? new Date(lastClaimedAt).getTime() : NaN;
+  const lastMs = Number.isFinite(lastParsed) ? lastParsed : 0;
   const nowMs = Date.now();
   const onDailyCooldown = Number.isFinite(lastMs) && lastMs > 0 && nowMs - lastMs < TWENTY_FOUR_H_MS;
   const nextDailyClaimAt =

@@ -21,6 +21,7 @@ import {
   Award
 } from "lucide-react";
 import { LevelBadge } from "@/components/LevelBadge";
+import { formatLocaleDateLong } from "@/lib/datetime/safe-date";
 import { getLevelProgress } from "@/lib/gamification";
 import { useMorraUser } from "@/contexts/MorraUserContext";
 import { useMorraCheckout } from "@/hooks/use-morra-checkout";
@@ -230,11 +231,7 @@ export function Settings() {
 
   function formatPeriodEnd(iso: string | null | undefined) {
     if (!iso) return ",";
-    try {
-      return new Date(iso).toLocaleDateString(undefined, { dateStyle: "long" });
-    } catch {
-      return ",";
-    }
+    return formatLocaleDateLong(iso, ",");
   }
 
   const progressDenominator =

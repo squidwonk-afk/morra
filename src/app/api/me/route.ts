@@ -36,7 +36,7 @@ export async function GET() {
   }
   const userId = await getSessionUserId();
   if (!userId) {
-    return jsonError("Unauthorized.", 401);
+    return jsonOk({ user: null });
   }
 
   const supabase = getSupabaseAdmin();

@@ -1,1 +1,6 @@
-export { POST, dynamic, runtime } from "@/app/api/stripe/webhook/route";
+import { POST } from "@/app/api/stripe/webhook/route";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+export { POST };

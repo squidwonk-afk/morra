@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useMorraUser } from "@/contexts/MorraUserContext";
+import { formatLocaleString } from "@/lib/datetime/safe-date";
 import {
   StripeOnboardingRegionNote,
   StripePayoutWithdrawClarifications,
@@ -233,7 +234,7 @@ export function Payouts() {
                 <div>
                   <p className="font-semibold">{formatUsd(payout.amountCents)}</p>
                   <p className="text-sm text-[#A0A0A0]">
-                    {new Date(payout.createdAt).toLocaleString()}
+                    {formatLocaleString(payout.createdAt)}
                   </p>
                 </div>
                 <span className="text-xs text-[#A0A0A0] font-mono truncate max-w-[140px]">

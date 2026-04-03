@@ -5,6 +5,7 @@ import { useEffect, useReducer, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Trophy, Users, Radio, Sparkles, ArrowRight } from "lucide-react";
 import { useMorraUser } from "@/contexts/MorraUserContext";
+import { parseDate, toIsoStringOrNull } from "@/lib/datetime/safe-date";
 import { isSongwarsSubmissionsPhaseStatus } from "@/lib/songwars/constants";
 
 type EventPayload = {
@@ -26,13 +27,15 @@ type EventPayload = {
 };
 
 function formatCountdown(targetIso: string): string {
-  const t = new Date(targetIso).getTime() - Date.now();
+  const parsed = parseDate(targetIso);
+  if (!parsed) return "—";
+  const t = parsed.getTime() - Date.now();
   if (t <= 0) return "00:00:00";
-  const d = Math.floor(t / 86400000);
+  const days = Math.floor(t / 86400000);
   const h = Math.floor((t % 86400000) / 3600000);
   const m = Math.floor((t % 3600000) / 60000);
   const s = Math.floor((t % 60000) / 1000);
-  if (d > 0) return `${d}d ${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
+  if (days > 0) return `${days}d ${String(h).padStart(2, "0")}h ${String(m).padStart(2, "0")}m`;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
@@ -100,7 +103,9 @@ export function SongWarsLandingHero() {
     if (!active) return { active: false as const };
 
     const now = Date.now();
-    const closeMs = new Date(payload.event.submissions_close_at).getTime();
+    const closeParsed = parseDate(payload.event.submissions_close_at);
+    const closeMs = closeParsed?.getTime();
+    if (closeMs == null) return { active: false as const };
 
     if (isSongwarsSubmissionsPhaseStatus(st) && payload.submissionsOpen && now < closeMs) {
       return {
@@ -112,6 +117,7 @@ export function SongWarsLandingHero() {
     }
     if (st === "judging") {
       const target = payload.event.ends_at ?? payload.event.submissions_close_at;
+      if (!parseDate(target)) return { active: false as const };
       return {
         active: true as const,
         mode: "judging" as const,
@@ -119,11 +125,18 @@ export function SongWarsLandingHero() {
         label: "Event wraps in",
       };
     }
-    const endsMs = payload.event.ends_at ? new Date(payload.event.ends_at).getTime() : closeMs;
+    const endsRaw = payload.event.ends_at;
+    const endsMs =
+      endsRaw != null && String(endsRaw).trim() !== ""
+        ? parseDate(endsRaw)?.getTime() ?? closeMs
+        : closeMs;
+    const maxMs = Math.max(closeMs, endsMs);
+    const betweenIso = toIsoStringOrNull(maxMs);
+    if (!betweenIso) return { active: false as const };
     return {
       active: true as const,
       mode: "between" as const,
-      targetIso: new Date(Math.max(closeMs, endsMs)).toISOString(),
+      targetIso: betweenIso,
       label: "Next update in",
     };
   })();

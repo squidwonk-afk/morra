@@ -7,6 +7,7 @@ import { Bell, Menu, Trophy, X } from "lucide-react";
 import { MorraLogo } from "@/components/ui/MorraLogo";
 import { Button } from "@/components/ui/button";
 import { useMorraUser } from "@/contexts/MorraUserContext";
+import { formatLocaleString } from "@/lib/datetime/safe-date";
 
 type NotificationRow = {
   id: string;
@@ -308,7 +309,7 @@ export function Navbar({ isLoggedIn = false }: { isLoggedIn?: boolean }) {
                                     {n.message}
                                   </p>
                                   <p className="text-xs text-[#707070] mt-2">
-                                    {new Date(n.createdAt).toLocaleString()}
+                                    {formatLocaleString(n.createdAt)}
                                   </p>
                                 </div>
                               </div>

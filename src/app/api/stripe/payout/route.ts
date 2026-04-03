@@ -76,7 +76,8 @@ export async function POST() {
     .maybeSingle();
 
   if (lastOut?.created_at) {
-    const elapsed = Date.now() - new Date(lastOut.created_at as string).getTime();
+    const createdMs = new Date(lastOut.created_at as string).getTime();
+    const elapsed = Number.isFinite(createdMs) ? Date.now() - createdMs : Number.POSITIVE_INFINITY;
     if (elapsed >= 0 && elapsed < PAYOUT_COOLDOWN_MS) {
       return jsonError("You can withdraw at most once per hour. Try again soon.", 429);
     }

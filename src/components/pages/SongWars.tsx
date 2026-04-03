@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CREDIT_COSTS } from "@/lib/constants/credits";
+import { parseDate } from "@/lib/datetime/safe-date";
 
 type SongWarInsightPayload = {
   submissionId: string;
@@ -114,13 +115,15 @@ type EventPayload = {
 };
 
 function msToCountdown(targetIso: string): string {
-  const t = new Date(targetIso).getTime() - Date.now();
+  const parsed = parseDate(targetIso);
+  if (!parsed) return "—";
+  const t = parsed.getTime() - Date.now();
   if (t <= 0) return "Closed";
-  const d = Math.floor(t / 86400000);
+  const days = Math.floor(t / 86400000);
   const h = Math.floor((t % 86400000) / 3600000);
   const m = Math.floor((t % 3600000) / 60000);
   const s = Math.floor((t % 60000) / 1000);
-  if (d > 0) return `${d}d ${h}h`;
+  if (days > 0) return `${days}d ${h}h`;
   if (h > 0) return `${h}h ${m}m`;
   if (m > 0) return `${m}m ${s}s`;
   return `${s}s`;
