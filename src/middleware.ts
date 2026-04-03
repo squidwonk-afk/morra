@@ -1,0 +1,46 @@
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import { checkGlobalIpLimit } from "@/lib/abuse/ip-limits";
+import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
+
+/** Set on `/api/*` after JWT verify (incoming value is stripped first). */
+export const MORRA_USER_ID_HEADER = "x-morra-user-id";
+
+/**
+ * API-only: rate limits + optional x-morra-user-id from verified morra_session.
+ * Does not redirect or touch auth cookies (avoids logout/checkout loops).
+ */
+export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  if (!path.startsWith("/api")) {
+    return NextResponse.next();
+  }
+  if (path.startsWith("/api/stripe/webhook")) {
+    return NextResponse.next();
+  }
+  if (path.startsWith("/api/webhooks/stripe")) {
+    return NextResponse.next();
+  }
+  if (path.startsWith("/api/cron/")) {
+    return NextResponse.next();
+  }
+
+  const g = checkGlobalIpLimit(request);
+  if (!g.ok) {
+    return NextResponse.json({ ok: false, error: g.message }, { status: 429 });
+  }
+
+  const headers = new Headers(request.headers);
+  headers.delete(MORRA_USER_ID_HEADER);
+  const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
+  const session = await verifySessionToken(token);
+  if (session?.userId) {
+    headers.set(MORRA_USER_ID_HEADER, session.userId);
+  }
+
+  return NextResponse.next({ request: { headers } });
+}
+
+export const config = {
+  matcher: ["/api/:path*"],
+};

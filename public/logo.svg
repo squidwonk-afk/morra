@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" fill="none">
+  <text x="4" y="36" font-family="system-ui,Segoe UI,sans-serif" font-size="32" font-weight="800" fill="#00FF94" filter="url(#g)">MORRA</text>
+  <defs>
+    <filter id="g" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="0" stdDeviation="2" flood-color="#00FF94" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+</svg>
