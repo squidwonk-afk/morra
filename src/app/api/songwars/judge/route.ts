@@ -5,6 +5,7 @@ import { verifyCronRequest } from "@/lib/cron-auth";
 import { isGodUsername } from "@/lib/god-mode";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
+import { SONGWARS_LIVE_EVENT_STATUSES } from "@/lib/songwars/constants";
 import { runJudgingRound } from "@/lib/songwars/service";
 
 export const runtime = "nodejs";
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
     const { data } = await supabase
       .from("songwars_events")
       .select("id")
-      .in("status", ["submissions_open", "judging"])
+      .in("status", [...SONGWARS_LIVE_EVENT_STATUSES])
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();

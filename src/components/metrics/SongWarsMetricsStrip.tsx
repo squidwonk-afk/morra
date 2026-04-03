@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Clock, Trophy } from "lucide-react";
-import { R1_ADVANCE_FRACTION } from "@/lib/songwars/constants";
+import { isSongwarsSubmissionsPhaseStatus, R1_ADVANCE_FRACTION } from "@/lib/songwars/constants";
 
 type StandingStatus = "pending" | "qualifying" | "eliminated" | "finalist" | "winner";
 
@@ -73,7 +73,7 @@ export function SongWarsMetricsStrip() {
   const strip = useMemo(() => {
     if (!payload) return null;
     const st = payload.event.status;
-    const active = st === "submissions_open" || st === "judging";
+    const active = isSongwarsSubmissionsPhaseStatus(st) || st === "judging";
     if (!active) return null;
     if (payload.userState !== "confirmed") return null;
 

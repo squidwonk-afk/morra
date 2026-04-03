@@ -633,7 +633,7 @@ export function Settings() {
                   AI personalization
                 </h3>
                 <p className="text-xs text-[#A0A0A0] mb-4">
-                  MORRA tools use this alongside your profile and recent work—helps avoid generic outputs.
+                  MORRA tools use this alongside your profile and recent work, helping avoid generic outputs.
                 </p>
                 <div className="space-y-3">
                   <div>

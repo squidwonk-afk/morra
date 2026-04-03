@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const { deviceId, setCookie } = ensureDeviceId(req);
   const res = jsonOk({ deviceId });
   if (setCookie) {
-    setDeviceCookieOnResponse(res, deviceId);
+    setDeviceCookieOnResponse(res, deviceId, req);
   }
   return res;
 }

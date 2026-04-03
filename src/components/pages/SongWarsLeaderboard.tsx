@@ -85,14 +85,14 @@ export function SongWarsLeaderboard() {
 
       {comingSoon ? (
         <p className="text-[#A0A0A0] text-center py-12 rounded-2xl border border-[#00FF94]/15 bg-[#121212]/50">
-          Coming soon — leaderboard data isn&apos;t available in this environment yet.
+          Coming soon, leaderboard data isn&apos;t available in this environment yet.
         </p>
       ) : null}
 
       {!comingSoon && err ? <p className="text-red-400">{err}</p> : null}
 
       {!comingSoon && !err && rows.length === 0 ? (
-        <p className="text-[#707070]">No entries yet—be the first to compete.</p>
+        <p className="text-[#707070]">No entries yet, be the first to compete.</p>
       ) : null}
 
       {!comingSoon && !err && top10.length > 0 ? (

@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { AssistantProvider, useAssistant } from "@/contexts/AssistantContext";
 import { IdentityRequiredModal } from "@/components/auth/IdentityRequiredModal";
 import { FloatingChatButton } from "@/components/FloatingChatButton";
@@ -10,10 +11,20 @@ import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
 import { useMorraUser } from "@/contexts/MorraUserContext";
 
+function isSongWarsPublicPath(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return (
+    pathname === "/app/songwars" ||
+    pathname === "/app/songwars/leaderboard" ||
+    pathname.startsWith("/app/songwars/")
+  );
+}
+
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isOpen, openAssistant, closeAssistant } = useAssistant();
+  const pathname = usePathname();
   const { me, sessionResolved } = useMorraUser();
-  const needsIdentity = sessionResolved && !me?.user;
+  const needsIdentity = sessionResolved && !me?.user && !isSongWarsPublicPath(pathname);
 
   return (
     <div className="min-h-screen bg-[#0A0A0A]">

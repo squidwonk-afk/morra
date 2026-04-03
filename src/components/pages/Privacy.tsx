@@ -19,29 +19,29 @@ export function Privacy() {
             <h2 className="text-2xl font-bold text-white mb-4">1. Information we collect</h2>
             <ul className="space-y-2 list-disc list-inside leading-relaxed">
               <li>
-                <strong className="text-white">Account &amp; profile</strong> — for example{" "}
+                <strong className="text-white">Account &amp; profile</strong>, for example{" "}
                 <strong className="text-white">username</strong>, display name, and profile-related fields
                 you provide. We use a <strong className="text-white">PIN</strong> for sign-in (handled
                 securely; we do not use email as the primary login identifier).
               </li>
               <li>
-                <strong className="text-white">Usage data</strong> — interactions with morra.store (e.g.
+                <strong className="text-white">Usage data</strong>, interactions with morra.store (e.g.
                 features used, device/browser type, diagnostics, and abuse-prevention signals) to operate
                 and secure the Service.
               </li>
               <li>
-                <strong className="text-white">Referrals &amp; earnings</strong> — data needed to attribute
+                <strong className="text-white">Referrals &amp; earnings</strong>, data needed to attribute
                 referrals, calculate rewards, and process payouts (for example referral relationships and
                 balances in our systems).
               </li>
               <li>
-                <strong className="text-white">Stripe-related identifiers</strong> — such as Stripe
+                <strong className="text-white">Stripe-related identifiers</strong>, such as Stripe
                 customer IDs, Connect account IDs, and transaction metadata needed for payments and
                 payouts. <strong className="text-white">We do not store your full card details;</strong>{" "}
                 card data is handled by Stripe.
               </li>
               <li>
-                <strong className="text-white">Song Wars</strong> — if you join tournaments, we process
+                <strong className="text-white">Song Wars</strong>, if you join tournaments, we process
                 submission metadata you provide (for example track titles, public URLs you submit, optional
                 lyrics, and AI-generated judging scores/feedback) to operate rounds, leaderboards, and
                 notifications. You are responsible for only sharing content you have the right to use.
@@ -58,8 +58,8 @@ export function Privacy() {
             </p>
             <p className="leading-relaxed">
               <strong className="text-white">Referral payouts</strong> also run through Stripe (including
-              Connect). <strong className="text-white">Sensitive financial details for payouts</strong>—such
-              as bank account information you add for withdrawals—are collected and processed by{" "}
+              Connect). <strong className="text-white">Sensitive financial details for payouts</strong>, such
+              as bank account information you add for withdrawals, are collected and processed by{" "}
               <strong className="text-white">Stripe</strong>, not by MORRA. We may store limited identifiers
               and metadata (for example Connect account IDs and payout status) needed to operate the
               service.
@@ -71,7 +71,7 @@ export function Privacy() {
             <p className="leading-relaxed">
               We set an httpOnly <strong className="text-white">morra_session</strong> cookie (and related
               security measures) to keep you signed in after you log in with your username and PIN. This
-              cookie is used for authentication and session continuity—not for selling your data.
+              cookie is used for authentication and session continuity, not for selling your data.
             </p>
           </section>
 
@@ -88,8 +88,8 @@ export function Privacy() {
             <h2 className="text-2xl font-bold text-white mb-4">5. Data sharing</h2>
             <p className="leading-relaxed mb-4">
               We share data with <strong className="text-white">service providers</strong> that help us run
-              the platform—such as <strong className="text-white">Stripe</strong> (payments and Connect
-              payouts) and <strong className="text-white">Supabase</strong> (hosted backend / database)—so
+              the platform, such as <strong className="text-white">Stripe</strong> (payments and Connect
+              payouts) and <strong className="text-white">Supabase</strong> (hosted backend / database), so
               they can process data on our behalf under their terms and applicable law.
             </p>
             <p className="leading-relaxed">

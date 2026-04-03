@@ -87,7 +87,7 @@ export function Landing() {
               Your creative intelligence engine
             </h2>
             <p className="text-lg md:text-xl text-[#A0A0A0] mb-10">
-              Song Wars runs here — and so do your bios, rollouts, lyrics, covers, and collabs. One platform for the whole pipeline.
+              Song Wars runs here, and so do your bios, rollouts, lyrics, covers, and collabs. One platform for the whole pipeline.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link href="/signup">

@@ -9,7 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useMorraUser } from "@/contexts/MorraUserContext";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { SONG_WAR_MAX_JUDGE_VARIANCE, SONGWARS_JUDGES } from "@/lib/songwars/constants";
+import { LoginToContinueModal } from "@/components/auth/LoginToContinueModal";
+import {
+  isSongwarsSubmissionsPhaseStatus,
+  SONG_WAR_MAX_JUDGE_VARIANCE,
+  SONGWARS_JUDGES,
+} from "@/lib/songwars/constants";
 import {
   Trophy,
   Clock,
@@ -178,6 +183,7 @@ export function SongWars() {
   const [insights, setInsights] = useState<SongWarInsightPayload[] | null>(null);
   const [insightsErr, setInsightsErr] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -234,7 +240,7 @@ export function SongWars() {
       setInsightsErr(null);
       return;
     }
-    if (payload.event.status === "submissions_open" && payload.submissionsOpen) {
+    if (isSongwarsSubmissionsPhaseStatus(payload.event.status) && payload.submissionsOpen) {
       setInsights(null);
       setInsightsErr(null);
       return;
@@ -303,12 +309,12 @@ export function SongWars() {
   const showInsightsShell =
     payload?.userState === "confirmed" &&
     Boolean(payload.submissions?.length) &&
-    (payload.event.status !== "submissions_open" || !payload.submissionsOpen);
+    (!isSongwarsSubmissionsPhaseStatus(payload.event.status) || !payload.submissionsOpen);
 
   const showEngagementBlock = Boolean(
     payload?.engagement &&
       (payload.engagement.tracksEntered ?? 0) > 0 &&
-      !(payload.event.status === "submissions_open" && payload.submissionsOpen)
+      !(isSongwarsSubmissionsPhaseStatus(payload.event.status) && payload.submissionsOpen)
   );
 
   const hasYourPositionCard = Boolean(
@@ -328,7 +334,7 @@ export function SongWars() {
 
   async function join() {
     if (!me?.user) {
-      toast.error("Sign in required");
+      setLoginPromptOpen(true);
       return;
     }
     setJoinBusy(true);
@@ -351,7 +357,10 @@ export function SongWars() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!me?.user) return;
+    if (!me?.user) {
+      setLoginPromptOpen(true);
+      return;
+    }
     setSubmitBusy(true);
     try {
       const r = await fetch("/api/songwars/submit", {
@@ -432,7 +441,7 @@ export function SongWars() {
         </h1>
         <p className="text-lg text-[#A0A0A0] max-w-2xl">
           Bi-weekly tournament. Up to 30 artists per event; overflow joins a fair queue for the next one.
-          Four AI judges score anonymously—see Terms for disclaimers.
+          Four AI judges score anonymously, see Terms for disclaimers.
         </p>
       </div>
 
@@ -446,14 +455,14 @@ export function SongWars() {
         <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-[#00FF94]/10 to-[#9BFF00]/8 border border-[#00FF94]/35">
           <h2 className="text-lg font-bold text-[#00FF94] mb-2 flex items-center gap-2">
             <Sparkles size={20} />
-            Last podium — {payload.lastEvent.title}
+            Last podium, {payload.lastEvent.title}
           </h2>
           <ul className="space-y-2 text-[#E0E0E0]">
             {payload.lastEvent.winners.map((w) => (
               <li key={`${w.place}-${w.title}`}>
                 <span className="text-[#00FF94] font-semibold">{w.place}.</span> {w.title}
                 {w.displayName ? (
-                  <span className="text-[#707070] text-sm"> — {w.displayName}</span>
+                  <span className="text-[#707070] text-sm">, {w.displayName}</span>
                 ) : null}
               </li>
             ))}
@@ -584,7 +593,7 @@ export function SongWars() {
                 </div>
                 {payload.engagement!.standingsTop.length === 0 ? (
                   <p className="text-sm text-[#707070]">
-                    Board fills in once submissions are scored—check back after judging runs.
+                    Board fills in once submissions are scored, check back after judging runs.
                   </p>
                 ) : (
                   <ol className="space-y-2">
@@ -657,9 +666,9 @@ export function SongWars() {
               Your tier: <strong className="text-white">{paid ? "Paid subscriber" : "Free"}</strong>
             </p>
             <ul className="text-[#E0E0E0] space-y-1">
-              <li>1st — {prizes[0]} credits</li>
-              <li>2nd — {prizes[1]} credits</li>
-              <li>3rd — {prizes[2]} credits</li>
+              <li>1st, {prizes[0]} credits</li>
+              <li>2nd, {prizes[1]} credits</li>
+              <li>3rd, {prizes[2]} credits</li>
             </ul>
           </div>
 
@@ -673,7 +682,7 @@ export function SongWars() {
               ))}
             </ul>
             <p className="text-xs text-[#707070] mt-4">
-              Scores are combined as a weighted average. AI feedback is educational—not professional A&R or
+              Scores are combined as a weighted average. AI feedback is educational, not professional A&R or
               legal advice.
             </p>
           </div>
@@ -916,7 +925,20 @@ export function SongWars() {
           )}
         </div>
       ) : (
-        <p className="text-[#A0A0A0]">Sign in to join Song Wars.</p>
+        <div className="space-y-4">
+          <p className="text-[#A0A0A0]">
+            Browse the event above. Sign in to join this tournament or submit tracks.
+          </p>
+          {payload?.event ? (
+            <Button
+              type="button"
+              onClick={() => void join()}
+              className="bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90"
+            >
+              Join Song Wars
+            </Button>
+          ) : null}
+        </div>
       )}
 
       <div className="mt-12 text-center">
@@ -926,6 +948,8 @@ export function SongWars() {
           </Button>
         </Link>
       </div>
+
+      <LoginToContinueModal open={loginPromptOpen} onOpenChange={setLoginPromptOpen} />
     </div>
   );
 }

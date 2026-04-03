@@ -63,3 +63,11 @@ export const LEADERBOARD_POINTS: Record<
   topTen: 20,
   participant: 5,
 };
+
+/** DB `songwars_events.status` values that mean a non-finished event is in progress. */
+export const SONGWARS_LIVE_EVENT_STATUSES = ["active", "submissions_open", "judging"] as const;
+
+/** True while the submission window may be open (also compare `submissions_close_at`). */
+export function isSongwarsSubmissionsPhaseStatus(status: string): boolean {
+  return status === "active" || status === "submissions_open";
+}

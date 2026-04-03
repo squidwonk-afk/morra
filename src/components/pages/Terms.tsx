@@ -21,8 +21,8 @@ export function Terms() {
             <p className="leading-relaxed mb-4">
               MORRA is a digital platform for artists. Through morra.store you can use AI-assisted tools
               for your creative workflow, purchase <strong className="text-white">credits</strong> and{" "}
-              <strong className="text-white">subscriptions</strong> for additional access, and—where
-              offered—participate in a <strong className="text-white">referral rewards</strong> program.
+              <strong className="text-white">subscriptions</strong> for additional access, and, where
+              offered, participate in a <strong className="text-white">referral rewards</strong> program.
               Features and availability may change as we improve the product.
             </p>
           </section>
@@ -46,7 +46,7 @@ export function Terms() {
               <strong className="text-white">All purchases are final</strong> unless required by applicable
               law. <strong className="text-white">Credits are non-transferable</strong> and, except where
               the law requires otherwise, <strong className="text-white">non-refundable</strong>. Credits
-              are a limited license to use Service features as described at purchase—not cash or stored
+              are a limited license to use Service features as described at purchase, not cash or stored
               value.
             </p>
             <p className="leading-relaxed">
@@ -102,7 +102,7 @@ export function Terms() {
             <p className="leading-relaxed mb-4">
               <strong className="text-white">Some users may not be able to receive payouts</strong> through
               the standard Connect flow or usual bank transfer options, even if referral earnings appear in
-              the app. In those cases, Stripe may offer other options, or payouts may not be available—this
+              the app. In those cases, Stripe may offer other options, or payouts may not be available; this
               is outside MORRA&apos;s control.
             </p>
             <p className="leading-relaxed mb-4">
@@ -132,7 +132,7 @@ export function Terms() {
             <h2 className="text-2xl font-bold text-white mb-4">7. Acceptable use</h2>
             <p className="leading-relaxed mb-4">
               You agree to use the Service lawfully. You must not abuse, disrupt, or attempt to circumvent
-              the Service—including automated abuse, exploitation, security probing, or use that violates
+              the Service, including automated abuse, exploitation, security probing, or use that violates
               applicable law or others&apos; rights.
             </p>
             <p className="leading-relaxed">

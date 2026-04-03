@@ -16,7 +16,7 @@ export function Team() {
         <div className="p-8 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
           <h2 className="text-2xl font-bold text-white mb-4">Mission</h2>
           <p className="text-[#A0A0A0] leading-relaxed">
-            We want every artist—whether in a bedroom studio or on tour—to access practical AI workflows that respect
+            We want every artist, whether in a bedroom studio or on tour, to access practical AI workflows that respect
             their time and creative intent. Feedback from the morra.store community shapes what we build next.
           </p>
         </div>

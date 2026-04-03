@@ -5,6 +5,7 @@ import { useEffect, useReducer, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Trophy, Users, Radio, Sparkles, ArrowRight } from "lucide-react";
 import { useMorraUser } from "@/contexts/MorraUserContext";
+import { isSongwarsSubmissionsPhaseStatus } from "@/lib/songwars/constants";
 
 type EventPayload = {
   ok?: boolean;
@@ -94,13 +95,14 @@ export function SongWarsLandingHero() {
   const live = (() => {
     if (!payload?.event) return { active: false as const };
     const st = payload.event.status;
-    const active = st === "submissions_open" || st === "judging";
+    const active =
+      isSongwarsSubmissionsPhaseStatus(st) || st === "judging";
     if (!active) return { active: false as const };
 
     const now = Date.now();
     const closeMs = new Date(payload.event.submissions_close_at).getTime();
 
-    if (st === "submissions_open" && payload.submissionsOpen && now < closeMs) {
+    if (isSongwarsSubmissionsPhaseStatus(st) && payload.submissionsOpen && now < closeMs) {
       return {
         active: true as const,
         mode: "submissions" as const,
@@ -167,7 +169,7 @@ export function SongWarsLandingHero() {
               <p className="text-xl md:text-2xl text-[#E8E8E8] font-semibold mb-3">No active events yet</p>
               <p className="text-base md:text-lg text-[#A0A0A0] mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 The arena is ready. As soon as the next tournament opens, you&apos;ll compete with AI judges and climb
-                the leaderboard — right here.
+                the leaderboard, right here.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Link href={joinSongWars}>
@@ -222,7 +224,7 @@ export function SongWarsLandingHero() {
           </h2>
           <p className="text-lg text-[#A0A0A0] mb-6">Coming soon</p>
           <p className="text-sm text-[#707070] leading-relaxed">
-            Tournaments aren&apos;t available in this environment yet. Check back later — the full arena, judges, and
+            Tournaments aren&apos;t available in this environment yet. Check back later, the full arena, judges, and
             leaderboards will appear here automatically.
           </p>
           <div className="mt-8">
@@ -281,7 +283,7 @@ export function SongWarsLandingHero() {
             </p>
             <p className="text-base md:text-lg text-[#A0A0A0] mb-8 max-w-xl mx-auto lg:mx-0 leading-relaxed">
               Up to thirty artists per round. Four AI judges. Submit tracks, climb the bracket, win credits.
-              This isn&apos;t a side mode — it&apos;s why we built MORRA.
+              This isn&apos;t a side mode, it&apos;s why we built MORRA.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start mb-10">
@@ -353,7 +355,7 @@ export function SongWarsLandingHero() {
                       ? "Lock in your tracks before the window closes."
                       : live.mode === "judging"
                         ? "Results and standings update as judges finish each round."
-                        : "Hang tight — the next phase is starting soon."}
+                        : "Hang tight, the next phase is starting soon."}
                   </p>
                 </>
               ) : (

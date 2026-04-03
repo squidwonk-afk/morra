@@ -3,8 +3,8 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
 import { isSongwarsUnavailableError } from "@/lib/songwars/availability";
 import {
-  ensureActiveEvent,
   getSongWarInsightsForUser,
+  requireActiveSongwarsEvent,
   SongWarsNoActiveEventError,
 } from "@/lib/songwars/service";
 
@@ -17,7 +17,7 @@ export async function GET() {
 
   try {
     const supabase = getSupabaseAdmin();
-    const event = await ensureActiveEvent(supabase);
+    const event = await requireActiveSongwarsEvent(supabase);
     const insights = await getSongWarInsightsForUser(supabase, userId, event.id as string);
     return jsonOk({ available: true, insights });
   } catch (e) {

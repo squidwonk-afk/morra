@@ -326,7 +326,7 @@ export function CollabFinder() {
         toast.message("Output refined", { description: `Quality pass ${attempts}` });
       }
       if (j.result?.fromCache) {
-        toast.message("Loaded cached results", { description: "Same inputs within 24h — instant response." });
+        toast.message("Loaded cached results", { description: "Same inputs within 24h, instant response." });
       } else {
         toast.success("AI strategy ready");
       }
@@ -426,7 +426,7 @@ export function CollabFinder() {
               Premium AI: Artist matches + collab ideas
             </h2>
             <p className="text-sm text-[#A0A0A0] mb-6 max-w-3xl">
-              Uses your saved profile + extended artist context. Results are structured sections—not chat.
+              Uses your saved profile + extended artist context. Results are structured sections, not chat.
               Identical requests may load from cache for 24h.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">

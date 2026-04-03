@@ -14,8 +14,10 @@ import {
   R1_ADVANCE_FRACTION,
   R2_ADVANCE_FRACTION,
   SONGWARS_JUDGES,
+  SONGWARS_LIVE_EVENT_STATUSES,
   TRANSPARENCY_TYPE_LABEL,
   TRANSPARENCY_TYPE_ORDER,
+  isSongwarsSubmissionsPhaseStatus,
   type SongWarJudgeType,
   type SongwarsJudgeKey,
 } from "@/lib/songwars/constants";
@@ -94,21 +96,54 @@ async function isPaidUser(supabase: SupabaseClient, userId: string): Promise<boo
   return (data as { subscription_status?: string } | null)?.subscription_status === "active";
 }
 
-export async function ensureActiveEvent(supabase: SupabaseClient): Promise<SongwarsEventRow> {
-  const { data: existing, error: selErr } = await supabase
+const SONGWARS_FETCH_DEBUG =
+  process.env.NODE_ENV === "development" || process.env.SONGWARS_DEBUG === "1";
+
+/**
+ * One running event: `songwars_events` where status is active / submissions_open / judging.
+ * Matches manual seeds using `status = 'active'` and legacy `submissions_open` / `judging`.
+ * Does not create rows (public GET must not auto-insert).
+ */
+export async function findActiveSongwarsEvent(
+  supabase: SupabaseClient
+): Promise<SongwarsEventRow | null> {
+  const { data: rows, error: selErr } = await supabase
     .from("songwars_events")
     .select("*")
-    .in("status", ["submissions_open", "judging"])
+    .in("status", [...SONGWARS_LIVE_EVENT_STATUSES])
     .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(1);
 
   if (selErr) {
     if (isSongwarsUnavailableError(selErr)) throw selErr;
     throw new Error(selErr.message || "Could not read Song Wars events.");
   }
 
-  if (existing) return existing as SongwarsEventRow;
+  const existing = rows?.[0] as SongwarsEventRow | undefined;
+  if (SONGWARS_FETCH_DEBUG) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[songwars] songwars_events fetch: ${existing ? `found id=${existing.id} status=${existing.status}` : "no matching row"} (status in ${SONGWARS_LIVE_EVENT_STATUSES.join(", ")})`
+    );
+  }
+
+  return existing ?? null;
+}
+
+/** Mutations (join, submit, insights) require a running event; does not auto-create. */
+export async function requireActiveSongwarsEvent(supabase: SupabaseClient): Promise<SongwarsEventRow> {
+  const ev = await findActiveSongwarsEvent(supabase);
+  if (!ev) throw new SongWarsNoActiveEventError();
+  return ev;
+}
+
+/**
+ * After an event completes, optionally start the next tournament (FIFO waitlist promotion).
+ * Only called from finalize flow — not from public GET.
+ */
+async function createNextSongWarsEventAfterComplete(supabase: SupabaseClient): Promise<void> {
+  const already = await findActiveSongwarsEvent(supabase);
+  if (already) return;
 
   const close = new Date();
   close.setDate(close.getDate() + 14);
@@ -132,11 +167,10 @@ export async function ensureActiveEvent(supabase: SupabaseClient): Promise<Songw
 
   if (error || !created) {
     if (isSongwarsUnavailableError(error)) throw error;
-    throw new SongWarsNoActiveEventError(error?.message || "Could not create Song Wars event.");
+    return;
   }
 
   await promoteWaitlistToEvent(supabase, created.id as string, created.max_participants as number);
-  return created as SongwarsEventRow;
 }
 
 export async function promoteWaitlistToEvent(
@@ -175,7 +209,7 @@ export async function promoteWaitlistToEvent(
         supabase,
         uid,
         "system",
-        "Song Wars — you're in!",
+        "Song Wars, you're in!",
         "A spot opened for the current Song Wars. You can submit up to three tracks from the Song Wars page."
       );
       promoted++;
@@ -200,7 +234,7 @@ export async function joinSongwars(
   state: "confirmed" | "waitlist";
   event: SongwarsEventRow;
 }> {
-  const event = await ensureActiveEvent(supabase);
+  const event = await requireActiveSongwarsEvent(supabase);
 
   const { data: alreadyP } = await supabase
     .from("songwars_participants")
@@ -240,7 +274,7 @@ export async function joinSongwars(
       supabase,
       userId,
       "system",
-      "Song Wars — joined!",
+      "Song Wars, joined!",
       "You're confirmed for this bi-weekly Song Wars. Submit up to three tracks before submissions close."
     );
     await upsertLeaderboardEntry(supabase, userId, { events_delta: 1 });
@@ -255,7 +289,7 @@ export async function joinSongwars(
     supabase,
     userId,
     "system",
-    "Song Wars — waitlist",
+    "Song Wars, waitlist",
     "This event is full (30 artists). You're queued for the next Song Wars in FIFO order."
   );
   return { ok: true, state: "waitlist", event };
@@ -294,8 +328,8 @@ export async function submitSongwarsTrack(
   userId: string,
   input: { title: string; track_url: string; lyrics?: string; slot_index: number }
 ): Promise<{ submissionId: string }> {
-  const event = await ensureActiveEvent(supabase);
-  if (event.status !== "submissions_open") {
+  const event = await requireActiveSongwarsEvent(supabase);
+  if (!isSongwarsSubmissionsPhaseStatus(event.status)) {
     throw new Error("Submissions are closed for this event.");
   }
   if (new Date() >= new Date(event.submissions_close_at)) {
@@ -547,19 +581,19 @@ export function songWarEngagementHint(args: {
   const { rank, n, status } = args;
   const cutoff = Math.max(1, Math.ceil(n * R1_ADVANCE_FRACTION));
 
-  if (status === "winner") return "Podium finish — standout work this event.";
-  if (status === "finalist") return "You reached the finals — elite company.";
-  if (status === "pending") return "Scores are still settling — check back shortly.";
+  if (status === "winner") return "Podium finish, standout work this event.";
+  if (status === "finalist") return "You reached the finals, elite company.";
+  if (status === "pending") return "Scores are still settling, check back shortly.";
   if (status === "eliminated") {
     const near = cutoff + Math.max(2, Math.ceil(n * 0.08));
-    if (rank <= near) return "You were close to the qualifying line — sharpen for the next round.";
-    return "Out this event — thanks for bringing your best.";
+    if (rank <= near) return "You were close to the qualifying line, sharpen for the next round.";
+    return "Out this event, thanks for bringing your best.";
   }
 
   const safeLine = Math.max(1, Math.floor(cutoff * 0.45));
   if (rank <= safeLine) return "Comfortably inside the qualifying band.";
-  if (rank < cutoff) return "Inside qualifying — small moves on the board can matter.";
-  return "On the cut line — every placement counts.";
+  if (rank < cutoff) return "Inside qualifying, small moves on the board can matter.";
+  return "On the cut line, every placement counts.";
 }
 
 async function refreshSongWarStandings(supabase: SupabaseClient, eventId: string): Promise<void> {
@@ -784,11 +818,18 @@ export async function runJudgingRound(
   }
 
   const now = new Date();
-  if (event.status === "submissions_open" && now >= new Date(event.submissions_close_at as string)) {
+  const st = event.status as string;
+  if (
+    isSongwarsSubmissionsPhaseStatus(st) &&
+    now >= new Date(event.submissions_close_at as string)
+  ) {
     await supabase.from("songwars_events").update({ status: "judging" }).eq("id", eventId);
   }
 
-  if (event.status === "submissions_open" && now < new Date(event.submissions_close_at as string)) {
+  if (
+    isSongwarsSubmissionsPhaseStatus(st) &&
+    now < new Date(event.submissions_close_at as string)
+  ) {
     throw new Error("Submissions are still open; judging starts after the deadline.");
   }
 
@@ -994,8 +1035,8 @@ async function finalizeEventRewards(supabase: SupabaseClient, eventId: string) {
       supabase,
       p.user_id,
       "system",
-      `Song Wars — ${placeIdx === 1 ? "Winner" : placeIdx === 2 ? "2nd place" : "3rd place"}!`,
-      `Your track "${p.title}" earned place ${placeIdx}. We added ${credits} credits to your account. AI judging is informational only—not a guarantee of quality or outcomes.`
+      `Song Wars, ${placeIdx === 1 ? "Winner" : placeIdx === 2 ? "2nd place" : "3rd place"}!`,
+      `Your track "${p.title}" earned place ${placeIdx}. We added ${credits} credits to your account. AI judging is informational only, not a guarantee of quality or outcomes.`
     );
 
     winners.push({ userId: p.user_id, place: placeIdx, title: p.title, credits });
@@ -1054,12 +1095,12 @@ async function finalizeEventRewards(supabase: SupabaseClient, eventId: string) {
       supabase,
       uid,
       "system",
-      "Song Wars — results are in",
-      "Check the Song Wars page for this event's outcomes. Thanks for competing—AI scores are tools for fun and feedback, not professional A&R decisions."
+      "Song Wars, results are in",
+      "Check the Song Wars page for this event's outcomes. Thanks for competing, AI scores are tools for fun and feedback, not professional A&R decisions."
     );
   }
 
-  await ensureActiveEvent(supabase);
+  await createNextSongWarsEventAfterComplete(supabase);
 }
 
 export async function getLastCompletedBanner(
@@ -1268,12 +1309,15 @@ export async function getEventPublicPayload(
   lastEvent: Awaited<ReturnType<typeof getLastCompletedBanner>>;
   engagement: SongWarEngagementPayload;
 }> {
-  const rawEvent = await ensureActiveEvent(supabase);
-  const event = normalizeEventTimes(rawEvent as SongwarsEventRow);
+  const raw = await findActiveSongwarsEvent(supabase);
+  if (!raw) {
+    throw new SongWarsNoActiveEventError();
+  }
+  const event = normalizeEventTimes(raw as SongwarsEventRow);
   const confirmedCount = await getConfirmedCount(supabase, event.id);
   const now = new Date();
   const submissionsOpen =
-    event.status === "submissions_open" && now < new Date(event.submissions_close_at);
+    isSongwarsSubmissionsPhaseStatus(event.status) && now < new Date(event.submissions_close_at);
   const lastEvent = await getLastCompletedBanner(supabase);
   const engagement = await fetchEngagementPayload(supabase, event.id as string, userId);
 

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { hashPin } from "@/lib/auth/pin";
-import { morraSessionCookieBase } from "@/lib/auth/session-cookie";
+import { logMorraSessionCookieSet, morraSessionCookieBase } from "@/lib/auth/session-cookie";
 import { signSession, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 import { ABUSE_MSG_RATE } from "@/lib/abuse/messages";
 import { ensureDeviceId, getDeviceIdFromRequest, setDeviceCookieOnResponse } from "@/lib/abuse/device";
@@ -171,13 +171,15 @@ export async function POST(req: NextRequest) {
     return jsonError("Server session secret is not configured.", 500);
   }
 
+  const maxAge = 60 * 60 * 24 * 7;
   const res = jsonOk({ userId, username, referralCode: username });
   res.cookies.set(SESSION_COOKIE_NAME, token, {
-    ...morraSessionCookieBase(),
-    maxAge: 60 * 60 * 24 * 7,
+    ...morraSessionCookieBase(req),
+    maxAge,
   });
+  logMorraSessionCookieSet("signup", req, { maxAgeSec: maxAge });
   if (needNewDeviceCookie) {
-    setDeviceCookieOnResponse(res, cookieDevice);
+    setDeviceCookieOnResponse(res, cookieDevice, req);
   }
   return res;
 }

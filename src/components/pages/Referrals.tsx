@@ -278,7 +278,7 @@ export function Referrals() {
                 active referrals away from the next tier.
               </p>
             ) : engagement.messages.nextTierReferrals === null && engagement.stats && engagement.stats.activeReferrals >= 50 ? (
-              <p>You&apos;re at the top tier—keep growing your network.</p>
+              <p>You&apos;re at the top tier, keep growing your network.</p>
             ) : engagement.stats ? (
               <p>You&apos;ve reached the next tier threshold. Keep invites coming.</p>
             ) : (

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { z } from "zod";
 import { verifyPin } from "@/lib/auth/pin";
-import { morraSessionCookieBase } from "@/lib/auth/session-cookie";
+import { logMorraSessionCookieSet, morraSessionCookieBase } from "@/lib/auth/session-cookie";
 import { signSession, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 import { getClientIp } from "@/lib/abuse/request-ip";
 import { checkRateLimit } from "@/lib/rate-limit";
@@ -62,10 +62,12 @@ export async function POST(req: NextRequest) {
     return jsonError("Server session secret is not configured.", 500);
   }
 
+  const maxAge = 60 * 60 * 24 * 7;
   const res = jsonOk({ userId: user.id });
   res.cookies.set(SESSION_COOKIE_NAME, token, {
-    ...morraSessionCookieBase(),
-    maxAge: 60 * 60 * 24 * 7,
+    ...morraSessionCookieBase(req),
+    maxAge,
   });
+  logMorraSessionCookieSet("login", req, { maxAgeSec: maxAge });
   return res;
 }

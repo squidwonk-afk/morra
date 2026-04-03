@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { checkGlobalIpLimit } from "@/lib/abuse/ip-limits";
+import { logMorraSessionCookieRead } from "@/lib/auth/session-cookie";
 import { SESSION_COOKIE_NAME, verifySessionToken } from "@/lib/auth/session";
 
 /** Set on `/api/*` after JWT verify (incoming value is stripped first). */
@@ -14,9 +15,20 @@ export const MORRA_USER_ID_HEADER = "x-morra-user-id";
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
-  if (path === "/app" || path.startsWith("/app/")) {
+  const isPublicSongWarsView =
+    path === "/app/songwars" ||
+    path === "/app/songwars/leaderboard" ||
+    path.startsWith("/app/songwars/");
+
+  if ((path === "/app" || path.startsWith("/app/")) && !isPublicSongWarsView) {
     const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
     const session = await verifySessionToken(token);
+    const readOutcome: "ok" | "missing" | "invalid" = session?.userId
+      ? "ok"
+      : !token?.trim()
+        ? "missing"
+        : "invalid";
+    logMorraSessionCookieRead("middleware:/app", readOutcome);
     if (!session?.userId) {
       const login = new URL("/login", request.url);
       const dest = `${path}${request.nextUrl.search || ""}`;

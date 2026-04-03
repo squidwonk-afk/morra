@@ -118,7 +118,7 @@ function SuccessContent() {
             </span>
           </p>
           <p className="text-sm text-[#737373] mb-8">
-            If a number still looks off, open the dashboard once more—webhooks can take a few seconds.
+            If a number still looks off, open the dashboard once more, webhooks can take a few seconds.
           </p>
         </>
       )}

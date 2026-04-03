@@ -44,7 +44,7 @@ export function Legal() {
                 <p className="leading-relaxed">
                   MORRA's referral program may allow users to earn revenue share from referred subscriptions. However,
                   earnings are not guaranteed and depend on referred users maintaining active subscriptions. We are
-                  not responsible for tax obligations related to your earnings—you must report and pay any applicable
+                  not responsible for tax obligations related to your earnings, you must report and pay any applicable
                   taxes yourself. Payouts, where offered, are processed through Stripe Connect and are subject to Stripe's terms and
                   processing times.
                 </p>

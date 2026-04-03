@@ -16,7 +16,7 @@ const faqs = [
   {
     question: "How do I get paid?",
     answer:
-      "Connect a Stripe Express account from your dashboard (Connect Stripe). After Stripe approves your onboarding and you have available earnings that meet any withdrawal rules in the app, you can request a payout where that feature is offered. All payouts are processed in USD. Money moves through Stripe to the bank account you add in Stripe—not as cash stored inside MORRA. Payouts are processed by Stripe and may be delayed.",
+      "Connect a Stripe Express account from your dashboard (Connect Stripe). After Stripe approves your onboarding and you have available earnings that meet any withdrawal rules in the app, you can request a payout where that feature is offered. All payouts are processed in USD. Money moves through Stripe to the bank account you add in Stripe, not as cash stored inside MORRA. Payouts are processed by Stripe and may be delayed.",
   },
   {
     question: "Why do I need to connect Stripe?",
@@ -56,7 +56,7 @@ const faqs = [
   {
     question: "Can I earn money if payouts aren't supported in my country?",
     answer:
-      "Yes. You can still earn credits, use tools, refer others, and participate in programs like Song Wars on morra.store. Cash withdrawal of referral balances depends on whether Stripe Connect and payouts are available for your situation—not all users in all regions can receive bank payouts. Check Stripe’s documentation for your country or use the AI assistant on morra.store if you need help.",
+      "Yes. You can still earn credits, use tools, refer others, and participate in programs like Song Wars on morra.store. Cash withdrawal of referral balances depends on whether Stripe Connect and payouts are available for your situation; not all users in all regions can receive bank payouts. Check Stripe’s documentation for your country or use the AI assistant on morra.store if you need help.",
   },
   {
     question: "How do credits work?",
@@ -81,17 +81,17 @@ const faqs = [
   {
     question: "How does the XP system work?",
     answer:
-      "XP (experience points) reward consistent engagement on morra.store—for example, daily activity and qualifying usage—subject to fair-use and anti-abuse checks. XP can unlock tiers or in-product rewards as shown in the app. XP does not represent monetary value and may be adjusted to protect platform integrity.",
+      "XP (experience points) reward consistent engagement on morra.store, for example, daily activity and qualifying usage, subject to fair-use and anti-abuse checks. XP can unlock tiers or in-product rewards as shown in the app. XP does not represent monetary value and may be adjusted to protect platform integrity.",
   },
   {
     question: "What is MORRA?",
     answer:
-      "MORRA is a professional AI platform for music artists on morra.store: bios and promo copy, release planning, lyric insights, cover concepts, and more—designed around an artist workflow.",
+      "MORRA is a professional AI platform for music artists on morra.store: bios and promo copy, release planning, lyric insights, cover concepts, and more, designed around an artist workflow.",
   },
   {
     question: "What is Song Wars?",
     answer:
-      "Song Wars is a bi-weekly-style tournament on morra.store: up to 30 artists per event with a waitlist for overflow, up to three public track links per artist, and four AI judge personas that score and comment. Rounds narrow the field (including a top-40% style cut after round one) before final rankings. Prizes are credits—not cash—and differ for free vs active paid subscribers. Nothing guarantees a win, placement, or judge outcome. You are responsible for links and lyrics you submit and for rights in your content. Judging is AI-generated for engagement and feedback, not professional A&R. See Terms for full disclaimers.",
+      "Song Wars is a bi-weekly-style tournament on morra.store: up to 30 artists per event with a waitlist for overflow, up to three public track links per artist, and four AI judge personas that score and comment. Rounds narrow the field (including a top-40% style cut after round one) before final rankings. Prizes are credits, not cash, and differ for free vs active paid subscribers. Nothing guarantees a win, placement, or judge outcome. You are responsible for links and lyrics you submit and for rights in your content. Judging is AI-generated for engagement and feedback, not professional A&R. See Terms for full disclaimers.",
   },
   {
     question: "How do Song Wars notifications work?",
@@ -101,7 +101,7 @@ const faqs = [
   {
     question: "How does leveling relate to my subscription?",
     answer:
-      "Your level and XP reflect engagement; your subscription plan defines billing and included credits. You can level up on any tier—free or paid—according to the rules shown in the product.",
+      "Your level and XP reflect engagement; your subscription plan defines billing and included credits. You can level up on any tier, free or paid, according to the rules shown in the product.",
   },
   {
     question: "What is daily free access?",
@@ -126,7 +126,7 @@ const faqs = [
   {
     question: "What tools are included?",
     answer:
-      "MORRA includes core tools such as artist identity and promo copy, release rollout planning, lyric analysis, cover art concepts, and collaboration features—availability depends on your plan and credits.",
+      "MORRA includes core tools such as artist identity and promo copy, release rollout planning, lyric analysis, cover art concepts, and collaboration features, availability depends on your plan and credits.",
   },
   {
     question: "Do you store my lyrics or inputs?",
