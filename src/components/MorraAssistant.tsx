@@ -43,7 +43,11 @@ const suggestedPrompts = [
 const faqResponses: Record<string, string> = {
   credits: `MORRA uses credits per tool run:\n\n• Artist Identity: ${CREDIT_COSTS.identity} credits\n• Rollout: ${CREDIT_COSTS.rollout} credits\n• Lyrics: ${CREDIT_COSTS.lyrics} credits (depth may vary)\n• Cover: ${CREDIT_COSTS.cover} credits\n• Collab: ${CREDIT_COSTS.collab} credits\n\nSubscriptions (Stripe, monthly invoice):\n${subscriptionHelp}\n\nCredit packs (one-time checkout):\n${packsHelp}\n\nFree: 1 generation per rolling 24h without spending credits. Bonus credits from leveling and referrals.`,
   
-  "referrals": "Share your unique referral link with other artists! Here's how it works:\n\n📍 Tier 1 (1-4 referrals): 1.2% revenue share + 25 credits per signup\n📍 Tier 2 (5-9 referrals): 2% revenue share + 50 credits per signup\n📍 Tier 3 (10-19 referrals): 3.5% revenue share + 100 credits per signup\n📍 Tier 4 (20+ referrals): 5% revenue share + 200 credits per signup\n\nYou earn a percentage of your referrals' monthly subscriptions. Payments are made monthly via Stripe once you reach the $10 minimum threshold.",
+  referrals:
+    "You **may earn** based on referrals when program rules and qualifying activity are met—see **Referrals** in the app. MORRA does **not** promise income or **guaranteed** payouts. Tiers and rates can change; we may pause rewards for abuse. Connect Stripe to withdraw **available** earnings only; new amounts start in **pending** and usually clear after about **10 days** (hold from accrual). **All payouts are in USD.**",
+
+  payouts:
+    "MORRA uses Stripe for subscriptions, credit packs, and optional referral withdrawals.\n\n• You **may** withdraw **available USD** if you connect Stripe (Express) and meet the minimum in the app (often $5).\n• **Pending** balances are not withdrawable until they clear the hold (~10 days from accrual).\n• **Payouts are processed by Stripe and may be delayed** (reviews, bank timing).\n• MORRA does not store bank details for payouts—Stripe does.\n• Nothing here is financial or tax advice; **no dollar amount is guaranteed**.\n• Payouts may be limited to once per hour for safety.",
   
   "leveling": "MORRA features a 20-level XP progression system:\n\n✨ Earn XP from:\n• +10 XP per tool generation\n• +25 XP daily login bonus\n• +50 XP when someone signs up with your link\n• +100 XP when a referral subscribes\n• Streak bonuses for consistency\n\n🎁 Each level unlocks rewards:\n• Bonus credits (25-750 per level)\n• Exclusive titles like 'Rising Artist' or 'Underground Legend'\n• Special badges to show your dedication\n\nYour level is separate from your subscription - it shows your activity and commitment to your craft!",
   
@@ -65,6 +69,15 @@ function detectFAQIntent(message: string): string | null {
   
   if (lowercaseMsg.includes("credit") || lowercaseMsg.includes("pricing") || lowercaseMsg.includes("cost")) {
     return "credits";
+  }
+  if (
+    lowercaseMsg.includes("stripe connect") ||
+    lowercaseMsg.includes("payout") ||
+    lowercaseMsg.includes("get paid") ||
+    lowercaseMsg.includes("withdraw") ||
+    lowercaseMsg.includes("bank account")
+  ) {
+    return "payouts";
   }
   if (lowercaseMsg.includes("referral") || lowercaseMsg.includes("refer") || lowercaseMsg.includes("earn") || lowercaseMsg.includes("money")) {
     return "referrals";

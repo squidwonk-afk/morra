@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import Link from "next/link";
 import { 
@@ -35,6 +36,11 @@ import { useEffect, useState } from "react";
 import { displayUsername } from "@/lib/profile/username";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  StripeOnboardingRegionNote,
+  StripePayoutWithdrawClarifications,
+  stripeErrorSuggestsRegionalLimit,
+} from "@/components/legal/StripePayoutRegionMessaging";
 
 export function Settings() {
   const { me, refresh } = useMorraUser();
@@ -46,6 +52,7 @@ export function Settings() {
   const [confirmPin, setConfirmPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [earnBusy, setEarnBusy] = useState(false);
+  const [payoutRegionalEmphasis, setPayoutRegionalEmphasis] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -61,6 +68,11 @@ export function Settings() {
   } | null>(null);
   const { startCheckout, busy: checkoutBusy } = useMorraCheckout();
   const [portalBusy, setPortalBusy] = useState(false);
+  const [extArtistName, setExtArtistName] = useState("");
+  const [extGenres, setExtGenres] = useState("");
+  const [extInspirations, setExtInspirations] = useState("");
+  const [extGoals, setExtGoals] = useState("");
+  const [extBusy, setExtBusy] = useState(false);
 
   useEffect(() => {
     if (me?.user) {
@@ -68,6 +80,62 @@ export function Settings() {
       setDisplayName(me.user.displayName);
     }
   }, [me]);
+
+  useEffect(() => {
+    if (!me?.user?.id) return;
+    void (async () => {
+      try {
+        const r = await fetch("/api/user-profiles-extended", { credentials: "include" });
+        const j = (await r.json()) as {
+          extended?: {
+            artist_name?: string | null;
+            genres?: string[] | null;
+            inspirations?: string | null;
+            goals?: string | null;
+          } | null;
+        };
+        if (!r.ok || !j.extended) return;
+        setExtArtistName(j.extended.artist_name ?? "");
+        setExtGenres((j.extended.genres ?? []).join(", "));
+        setExtInspirations(j.extended.inspirations ?? "");
+        setExtGoals(j.extended.goals ?? "");
+      } catch {
+        /* table may not exist yet */
+      }
+    })();
+  }, [me?.user?.id]);
+
+  async function saveAiContext() {
+    setExtBusy(true);
+    try {
+      const genres = extGenres
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 30);
+      const r = await fetch("/api/user-profiles-extended", {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          artist_name: extArtistName.trim() || null,
+          genres,
+          inspirations: extInspirations.trim() || null,
+          goals: extGoals.trim() || null,
+        }),
+      });
+      const j = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok) {
+        toast.error(j.error || "Could not save AI context");
+        return;
+      }
+      toast.success("AI personalization saved");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setExtBusy(false);
+    }
+  }
 
   async function openBillingPortal() {
     if (portalBusy) return;
@@ -177,6 +245,7 @@ export function Settings() {
   );
 
   const availableCents = me?.earnings?.availableCents ?? 0;
+  const minPayoutCents = me?.minPayoutCents ?? 500;
   const pendingCents = me?.earnings?.pendingCents ?? 0;
   const stripeConnected = Boolean(me?.user?.stripeConnectAccountId);
   const userFlagged = me?.user?.flagged ?? false;
@@ -228,9 +297,12 @@ export function Settings() {
       });
       const j = (await r.json()) as { error?: string };
       if (!r.ok) {
-        toast.error(j.error || "Withdrawal failed");
+        const msg = j.error || "Withdrawal failed";
+        if (stripeErrorSuggestsRegionalLimit(msg)) setPayoutRegionalEmphasis(true);
+        toast.error(msg);
         return;
       }
+      setPayoutRegionalEmphasis(false);
       toast.success("Funds sent to your connected account.");
       await refresh();
     } finally {
@@ -554,6 +626,64 @@ export function Settings() {
               >
                 {busy ? "Saving…" : "Save Changes"}
               </Button>
+
+              <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#00FF94]/15 mt-8">
+                <h3 className="font-bold mb-1 flex items-center gap-2">
+                  <Sparkles className="text-[#00FF94]" size={18} />
+                  AI personalization
+                </h3>
+                <p className="text-xs text-[#A0A0A0] mb-4">
+                  MORRA tools use this alongside your profile and recent work—helps avoid generic outputs.
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="ext-artist">Artist name (as you want AI to refer to you)</Label>
+                    <Input
+                      id="ext-artist"
+                      value={extArtistName}
+                      onChange={(e) => setExtArtistName(e.target.value)}
+                      className="mt-1 bg-[#121212] border-[#00FF94]/20"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="ext-genres">Genres (comma-separated)</Label>
+                    <Input
+                      id="ext-genres"
+                      value={extGenres}
+                      onChange={(e) => setExtGenres(e.target.value)}
+                      placeholder="e.g. drill, R&B, indie rock"
+                      className="mt-1 bg-[#121212] border-[#00FF94]/20"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="ext-insp">Inspirations</Label>
+                    <Textarea
+                      id="ext-insp"
+                      value={extInspirations}
+                      onChange={(e) => setExtInspirations(e.target.value)}
+                      className="mt-1 bg-[#121212] border-[#00FF94]/20 min-h-[72px]"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="ext-goals">Goals (releases, tours, audience)</Label>
+                    <Textarea
+                      id="ext-goals"
+                      value={extGoals}
+                      onChange={(e) => setExtGoals(e.target.value)}
+                      className="mt-1 bg-[#121212] border-[#00FF94]/20 min-h-[72px]"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    disabled={extBusy}
+                    onClick={() => void saveAiContext()}
+                    variant="outline"
+                    className="border-[#00FF94]/40 text-[#00FF94]"
+                  >
+                    {extBusy ? "Saving…" : "Save AI context"}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -937,8 +1067,9 @@ export function Settings() {
               Referral earnings & payouts
             </h2>
             <p className="text-sm text-[#A0A0A0] mb-6">
-              When invited users pay for a subscription, you earn a percentage (tier 1–4). Funds show as
-              pending for 7 days, then become available to withdraw to your bank via Stripe.
+              When invited users pay for a subscription, you may earn a percentage (tier 1–4). New earnings
+              start as pending for about 10 days, then become available to withdraw in USD via Stripe.
+              Payouts are processed by Stripe and may be delayed.
             </p>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -947,7 +1078,7 @@ export function Settings() {
                 <p className="text-3xl font-bold text-[#00FF94]">{formatUsd(availableCents)}</p>
               </div>
               <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#00FF94]/10">
-                <p className="text-sm text-[#A0A0A0] mb-1">Pending (7-day hold)</p>
+                <p className="text-sm text-[#A0A0A0] mb-1">Pending (~10-day hold)</p>
                 <p className="text-3xl font-bold text-[#E0E0E0]">{formatUsd(pendingCents)}</p>
               </div>
             </div>
@@ -959,6 +1090,7 @@ export function Settings() {
                   ? "Account linked, complete onboarding in Stripe if prompted."
                   : "Connect a Stripe Express account to receive withdrawals."}
               </p>
+              {!stripeConnected ? <StripeOnboardingRegionNote className="mb-3" /> : null}
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
@@ -974,7 +1106,7 @@ export function Settings() {
                   disabled={
                     earnBusy ||
                     userFlagged ||
-                    availableCents < 1000 ||
+                    availableCents < minPayoutCents ||
                     !stripeConnected
                   }
                   onClick={() => void withdrawEarnings()}
@@ -983,14 +1115,18 @@ export function Settings() {
                   Withdraw earnings
                 </Button>
               </div>
+              <StripePayoutWithdrawClarifications
+                className="mt-4"
+                emphasizeRegionalLimit={payoutRegionalEmphasis}
+              />
               {userFlagged && (
                 <p className="text-xs text-[#FF6B00] mt-3">
                   Payouts are temporarily unavailable for this account.
                 </p>
               )}
               <p className="text-xs text-[#A0A0A0] mt-3">
-                Minimum withdrawal $10.00. Stripe handles identity verification; MORRA does not store bank
-                details.
+                Minimum withdrawal {formatUsd(minPayoutCents)}. Stripe handles identity verification; MORRA
+                does not store bank details.
               </p>
             </div>
 

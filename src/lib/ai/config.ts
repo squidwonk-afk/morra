@@ -52,6 +52,6 @@ export const AI_JOB_ROUTING: Record<
   lyrics_basic: { slot: "mixtral", maxTokens: TOKEN_LARGE },
   lyrics_advanced: { slot: "mixtral", maxTokens: TOKEN_XL },
   cover: { slot: "mixtral", maxTokens: TOKEN_LARGE },
-  collab: { slot: "mixtral", maxTokens: TOKEN_MEDIUM },
+  collab: { slot: "mixtral", maxTokens: TOKEN_XL },
   assistant: { slot: "mixtral", maxTokens: TOKEN_LARGE },
 };

@@ -4,6 +4,61 @@ import { HelpCircle } from "lucide-react";
 
 const faqs = [
   {
+    question: "How do I earn money on MORRA?",
+    answer:
+      "You may earn referral rewards when people you refer have qualifying paid activity on morra.store, according to in-app rules. Rewards are not guaranteed, amounts can change, and MORRA may adjust or pause the program. See Terms of Service.",
+  },
+  {
+    question: "How do referrals work?",
+    answer:
+      "You share your referral link or code. When someone creates an account and meets the program requirements, you may receive credits and/or revenue share according to the in-app tier rules. We may adjust or pause rewards if we detect abuse. Nothing promises a specific income level.",
+  },
+  {
+    question: "How do I get paid?",
+    answer:
+      "Connect a Stripe Express account from your dashboard (Connect Stripe). After Stripe approves your onboarding and you have available earnings that meet any withdrawal rules in the app, you can request a payout where that feature is offered. All payouts are processed in USD. Money moves through Stripe to the bank account you add in Stripe—not as cash stored inside MORRA. Payouts are processed by Stripe and may be delayed.",
+  },
+  {
+    question: "Why do I need to connect Stripe?",
+    answer:
+      "Stripe Connect handles identity verification and compliant payouts. MORRA does not collect your bank details directly; Stripe does, so you can receive referral earnings securely when you are eligible.",
+  },
+  {
+    question: "When do I receive payouts?",
+    answer:
+      "After a withdrawal is sent, timing depends on Stripe and your bank (weekends, holidays, reviews). MORRA does not control Stripe's schedules or holds.",
+  },
+  {
+    question: "What if I don’t connect Stripe?",
+    answer:
+      "You can still use morra.store for tools, credits, and subscriptions. You generally cannot receive referral cashouts until you complete Connect onboarding and meet any balance rules shown in the product.",
+  },
+  {
+    question: "Are there fees?",
+    answer:
+      "Stripe may charge processing or payout fees according to their pricing. MORRA’s pricing for credits and subscriptions is shown at checkout. Check Stripe’s documentation for Connect- and transfer-related fees in your region.",
+  },
+  {
+    question: "Can I withdraw instantly?",
+    answer:
+      "Not necessarily. Withdrawals are subject to minimum balance rules in the app, Stripe’s review of your account, bank transfer times, and any fraud or compliance checks. There is no promise of instant access to funds.",
+  },
+  {
+    question: "What if my Stripe account is rejected?",
+    answer:
+      "Stripe makes onboarding decisions. If you cannot complete Connect, you may be unable to receive cash payouts on MORRA until the issue is resolved with Stripe. You can still use other parts of the Service where available.",
+  },
+  {
+    question: "Why can't I withdraw my earnings?",
+    answer:
+      "Payout availability depends on Stripe and your country or region. Some locations have restrictions on certain transfers or Connect payout methods, and Stripe’s rules can change. You may need to use an alternative payout option if Stripe offers one for your account, or complete additional verification in Stripe. MORRA does not control Stripe’s eligibility decisions.",
+  },
+  {
+    question: "Can I earn money if payouts aren't supported in my country?",
+    answer:
+      "Yes. You can still earn credits, use tools, refer others, and participate in programs like Song Wars on morra.store. Cash withdrawal of referral balances depends on whether Stripe Connect and payouts are available for your situation—not all users in all regions can receive bank payouts. Check Stripe’s documentation for your country or use the AI assistant on morra.store if you need help.",
+  },
+  {
     question: "How do credits work?",
     answer:
       "Credits are spent when you run paid AI operations on morra.store (for example, tool generations). Your balance is shown in the app. Credit packs add to your balance at purchase. Subscription plans may include a recurring monthly credit allowance according to the plan you choose. Specific costs per tool are shown before you generate.",
@@ -34,6 +89,16 @@ const faqs = [
       "MORRA is a professional AI platform for music artists on morra.store: bios and promo copy, release planning, lyric insights, cover concepts, and more—designed around an artist workflow.",
   },
   {
+    question: "What is Song Wars?",
+    answer:
+      "Song Wars is a bi-weekly-style tournament on morra.store: up to 30 artists per event with a waitlist for overflow, up to three public track links per artist, and four AI judge personas that score and comment. Rounds narrow the field (including a top-40% style cut after round one) before final rankings. Prizes are credits—not cash—and differ for free vs active paid subscribers. Nothing guarantees a win, placement, or judge outcome. You are responsible for links and lyrics you submit and for rights in your content. Judging is AI-generated for engagement and feedback, not professional A&R. See Terms for full disclaimers.",
+  },
+  {
+    question: "How do Song Wars notifications work?",
+    answer:
+      "You may receive in-app notifications when you join, when you are promoted from the waitlist, and when results or prizes are applied. Turn on or check notifications via the bell in the nav where available.",
+  },
+  {
     question: "How does leveling relate to my subscription?",
     answer:
       "Your level and XP reflect engagement; your subscription plan defines billing and included credits. You can level up on any tier—free or paid—according to the rules shown in the product.",
@@ -47,11 +112,6 @@ const faqs = [
     question: "How does MORRA prevent abuse?",
     answer:
       "We apply rate limits, daily caps where applicable, and automated checks so the service stays fair and sustainable for all artists. Referral or revenue features may require meaningful, legitimate usage as described in the product or Terms.",
-  },
-  {
-    question: "How do referrals work?",
-    answer:
-      "You may share your referral link with other artists. When they sign up and maintain qualifying paid activity, you can earn rewards according to the current referral program on morra.store. Details and eligibility appear in-app.",
   },
   {
     question: "Do I need an email address?",

@@ -2,19 +2,54 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useMorraUser } from "@/contexts/MorraUserContext";
+import { displayUsername } from "@/lib/profile/username";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { 
-  Copy, 
-  Check, 
-  Gift, 
-  TrendingUp, 
+import {
+  Copy,
+  Check,
+  Gift,
+  TrendingUp,
   Users,
   ChevronRight,
   DollarSign,
-  Sparkles
+  Sparkles,
+  Medal,
+  Target,
+  Share2,
 } from "lucide-react";
+
+type EngagementPayload = {
+  leaderboard: {
+    rank: number;
+    userId: string;
+    displayName: string | null;
+    username: string | null;
+    totalEarnedCents: number;
+    referralCount: number;
+  }[];
+  myRank: number | null;
+  stats: {
+    totalEarnedCents: number;
+    totalConversions: number;
+    activeReferrals: number;
+    tier: number;
+    weeklyEarnedCents: number;
+  } | null;
+  milestones: {
+    key: string;
+    threshold: number;
+    credits: number;
+    complete: boolean;
+    claimed: boolean;
+  }[];
+  messages: {
+    nextTierReferrals: number | null;
+    weeklyUsd: string;
+  };
+  viewerUserId?: string;
+};
 
 const tiers = [
   {
@@ -56,6 +91,7 @@ const referredUsers: { username: string; status: string; earnings: number }[] = 
 export function Referrals() {
   const { me } = useMorraUser();
   const [copied, setCopied] = useState(false);
+  const [engagement, setEngagement] = useState<EngagementPayload | null>(null);
   const [referralStats, setReferralStats] = useState({
     active: 0,
     pending: 0,
@@ -110,11 +146,41 @@ export function Referrals() {
     })();
   }, [me?.user?.id]);
 
+  useEffect(() => {
+    void (async () => {
+      try {
+        const r = await fetch("/api/referrals/engagement", { credentials: "include", cache: "no-store" });
+        const d = (await r.json()) as EngagementPayload & { ok?: boolean };
+        if (!r.ok) {
+          setEngagement(null);
+          return;
+        }
+        const { ok: _o, ...rest } = d;
+        void _o;
+        setEngagement(rest as EngagementPayload);
+      } catch {
+        setEngagement(null);
+      }
+    })();
+  }, [me?.user?.id]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(referralLink);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  async function handleNativeShare() {
+    if (!referralLink || typeof navigator === "undefined" || !navigator.share) {
+      handleCopy();
+      return;
+    }
+    try {
+      await navigator.share({ title: "Join MORRA", text: "Sign up with my link:", url: referralLink });
+    } catch {
+      /* user cancelled */
+    }
+  }
 
   const totalInvited = referralStats.active + referralStats.pending;
   const activeCount = referralStats.active;
@@ -160,7 +226,7 @@ export function Referrals() {
             <h2 className="text-2xl font-bold">Your Referral Link</h2>
           </div>
           
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <Input
               readOnly
               value={referralLink}
@@ -182,6 +248,15 @@ export function Referrals() {
                 </>
               )}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => void handleNativeShare()}
+              className="border-[#00FF94]/40 text-[#00FF94] hover:bg-[#00FF94]/10"
+            >
+              <Share2 size={18} className="mr-2" />
+              Share
+            </Button>
           </div>
           
           <p className="mt-4 text-sm text-[#A0A0A0]">
@@ -189,6 +264,156 @@ export function Referrals() {
           </p>
         </div>
       </div>
+
+      {engagement ? (
+        <div className="mb-8 p-5 rounded-2xl bg-[#0A0A0A] border border-[#00FF94]/25 space-y-4">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-[#C8C8C8]">
+            <Target className="text-[#00FF94] shrink-0" size={18} />
+            {engagement.messages.nextTierReferrals != null && engagement.messages.nextTierReferrals > 0 ? (
+              <p>
+                You are{" "}
+                <span className="text-[#00FF94] font-bold tabular-nums">
+                  {engagement.messages.nextTierReferrals}
+                </span>{" "}
+                active referrals away from the next tier.
+              </p>
+            ) : engagement.messages.nextTierReferrals === null && engagement.stats && engagement.stats.activeReferrals >= 50 ? (
+              <p>You&apos;re at the top tier—keep growing your network.</p>
+            ) : engagement.stats ? (
+              <p>You&apos;ve reached the next tier threshold. Keep invites coming.</p>
+            ) : (
+              <p>Climb tiers with validated, active referrals.</p>
+            )}
+          </div>
+          <p className="text-sm text-[#A0A0A0]">
+            You earned{" "}
+            <span className="text-white font-semibold tabular-nums">${engagement.messages.weeklyUsd}</span>{" "}
+            this week from referral revenue (leaderboard ledger).
+          </p>
+        </div>
+      ) : null}
+
+      {engagement ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="p-6 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#707070] mb-2">Growth earnings</p>
+            <p className="text-3xl font-bold text-[#00FF94] tabular-nums">
+              ${((engagement?.stats?.weeklyEarnedCents ?? 0) / 100).toFixed(2)}
+            </p>
+            <p className="text-sm text-[#A0A0A0] mt-1">This week (UTC) · referral ledger</p>
+          </div>
+          <div className="p-6 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
+            <p className="text-[10px] uppercase tracking-[0.14em] text-[#707070] mb-2">Total (ledger)</p>
+            <p className="text-3xl font-bold text-white tabular-nums">
+              ${((engagement?.stats?.totalEarnedCents ?? 0) / 100).toFixed(2)}
+            </p>
+            <p className="text-sm text-[#A0A0A0] mt-1">
+              {engagement?.stats?.totalConversions ?? 0} paid conversions ·{" "}
+              {engagement?.stats?.activeReferrals ?? 0} active (validated)
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {engagement && engagement.milestones.length ? (
+        <div className="mb-8 p-6 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <Medal className="text-[#00FF94]" size={22} />
+            Referral milestones
+          </h2>
+          <p className="text-xs text-[#707070] mb-4">
+            Bonus credits when paid conversions hit each threshold (one-time per milestone).
+          </p>
+          <div className="space-y-4">
+            {engagement.milestones.map((m) => {
+              const progressPct =
+                m.threshold > 0
+                  ? Math.min(100, ((engagement.stats?.totalConversions ?? 0) / m.threshold) * 100)
+                  : 0;
+              return (
+                <div key={m.key} className="rounded-xl border border-[#00FF94]/12 bg-[#0A0A0A]/60 p-4">
+                  <div className="flex justify-between gap-3 mb-2">
+                    <span className="text-sm font-medium text-[#E0E0E0]">
+                      {m.threshold} conversions →{" "}
+                      <span className="text-[#00FF94] font-bold">{m.credits} credits</span>
+                    </span>
+                    <span className="text-xs shrink-0">
+                      {m.claimed ? (
+                        <span className="text-[#00FF94]">Claimed</span>
+                      ) : m.complete ? (
+                        <span className="text-[#E0B040]">Unlocking…</span>
+                      ) : (
+                        <span className="text-[#707070]">In progress</span>
+                      )}
+                    </span>
+                  </div>
+                  <Progress value={progressPct} className="h-2" />
+                  <p className="text-[11px] text-[#707070] mt-1 tabular-nums">
+                    {engagement.stats?.totalConversions ?? 0} / {m.threshold}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {engagement && engagement.leaderboard.length > 0 ? (
+        <div className="mb-8 p-6 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Medal className="text-[#00FF94]" size={22} />
+              Referral leaderboard
+            </h2>
+            {engagement.myRank != null ? (
+              <span className="text-sm text-[#A0A0A0]">
+                Your rank: <span className="text-[#00FF94] font-bold">#{engagement.myRank}</span>
+              </span>
+            ) : null}
+          </div>
+          <ol className="space-y-2">
+            {engagement.leaderboard.map((row) => {
+              const isYou = engagement.viewerUserId && row.userId === engagement.viewerUserId;
+              const label =
+                row.displayName?.trim() ||
+                displayUsername(row.username) ||
+                "Artist";
+              return (
+                <li
+                  key={row.userId}
+                  className={`flex items-center justify-between rounded-xl px-4 py-3 border transition-all ${
+                    isYou
+                      ? "bg-[#00FF94]/10 border-[#00FF94]/45 ring-1 ring-[#00FF94]/25"
+                      : "bg-[#0A0A0A]/50 border-[#00FF94]/10"
+                  }`}
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-lg font-bold text-[#00FF94] w-8 tabular-nums shrink-0">
+                      {row.rank}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-medium text-[#E0E0E0] truncate">
+                        {label}
+                        {isYou ? (
+                          <span className="ml-2 text-[10px] uppercase text-[#00FF94]">You</span>
+                        ) : null}
+                      </p>
+                      <p className="text-xs text-[#707070]">
+                        {row.referralCount} conversions (ledger)
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="font-bold text-white tabular-nums">
+                      ${(row.totalEarnedCents / 100).toFixed(2)}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      ) : null}
 
       {/* Earnings Overview */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

@@ -17,6 +17,7 @@ import {
   tryRewardFirstSubscription,
 } from "@/lib/referral/stripe-earnings-rpc";
 import { accrueReferralRevenueFromSubscriptionInvoice } from "@/lib/referral/revenue-share";
+import { recordReferralGrowthFromCreditPackCheckout } from "@/lib/referral/growth-engine";
 import {
   clearSubscriptionAndSetFree,
   findUserIdByStripeCustomerId,
@@ -175,6 +176,11 @@ export async function processStripeWebhookEvent(
             amountPaidUsd,
             kind: "credits",
             creditsGranted: credits,
+          });
+          await recordReferralGrowthFromCreditPackCheckout(supabase, {
+            payerUserId: userId,
+            amountPaidCents: Number(centsTotal),
+            checkoutSessionId: session.id,
           });
         }
       });

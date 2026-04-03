@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import { MorraLogo } from "@/components/MorraLogo";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Shield } from "lucide-react";
@@ -22,6 +23,7 @@ export function Signup() {
   });
   const [referralCode, setReferralCode] = useState("");
   const [busy, setBusy] = useState(false);
+  const [agreedTerms, setAgreedTerms] = useState(false);
 
   useEffect(() => {
     if (refFromUrl) {
@@ -37,6 +39,10 @@ export function Signup() {
     }
     if (formData.pin.length !== 6) {
       toast.error("PIN must be exactly 6 digits");
+      return;
+    }
+    if (!agreedTerms) {
+      toast.error("Please agree to the Terms and Privacy Policy");
       return;
     }
     setBusy(true);
@@ -182,6 +188,26 @@ export function Signup() {
               />
             </div>
 
+            <div className="flex items-start gap-3 rounded-lg border border-[#00FF94]/20 bg-[#0A0A0A]/80 p-4">
+              <Checkbox
+                id="terms"
+                checked={agreedTerms}
+                onCheckedChange={(v) => setAgreedTerms(v === true)}
+                className="mt-1 border-[#00FF94]/50 data-[state=checked]:bg-[#00FF94] data-[state=checked]:text-[#0A0A0A]"
+              />
+              <Label htmlFor="terms" className="text-sm text-[#E0E0E0] font-normal leading-snug cursor-pointer">
+                I agree to the{" "}
+                <Link href="/terms" className="text-[#00FF94] hover:underline font-medium">
+                  Terms of Service
+                </Link>{" "}
+                and{" "}
+                <Link href="/privacy" className="text-[#00FF94] hover:underline font-medium">
+                  Privacy Policy
+                </Link>
+                .
+              </Label>
+            </div>
+
             <Button
               type="submit"
               disabled={busy}
@@ -203,17 +229,6 @@ export function Signup() {
             </p>
           </div>
         </div>
-
-        <p className="text-center text-sm text-[#A0A0A0] mt-6">
-          By signing up, you agree to our{" "}
-          <Link href="/terms" className="text-[#00FF94] hover:underline">
-            Terms of Service
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" className="text-[#00FF94] hover:underline">
-            Privacy Policy
-          </Link>
-        </p>
       </div>
     </div>
   );

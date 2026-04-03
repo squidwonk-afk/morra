@@ -136,20 +136,21 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!dupPair) {
-      await supabase.from("referrals").insert({
+      const { error: refInsErr } = await supabase.from("referrals").insert({
         referrer_id: referredBy,
         referred_user_id: userId,
         status: "pending",
         ip_suspected: ipSuspected,
       });
-
-      await createNotification(
-        supabase,
-        referredBy,
-        "referral",
-        "New referral joined",
-        `@${username} signed up using your referral link.`
-      );
+      if (!refInsErr) {
+        await createNotification(
+          supabase,
+          referredBy,
+          "referral",
+          "New referral joined",
+          `@${username} signed up using your referral link.`
+        );
+      }
     }
   }
 

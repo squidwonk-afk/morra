@@ -2,6 +2,10 @@ import { getSessionUserId } from "@/lib/auth/request-user";
 import { displayUsername } from "@/lib/profile/username";
 import { PROFILE_SELECT_IDENTITY } from "@/lib/db/profile-fields";
 import { T } from "@/lib/db/morra-prod-tables";
+import { eligibleReleaseIsoFromCreatedAt } from "@/lib/referral/earnings-hold";
+import { clearStalePendingPayoutLogs } from "@/lib/referral/payout-stale";
+import { readAvailableCents, readPendingCents } from "@/lib/referral/profile-earnings";
+import { releaseMaturedReferralAccrualsForReferrer } from "@/lib/referral/revenue-share";
 import {
   referralTierFromCount,
   tierRevenuePercentLabel,
@@ -27,17 +31,18 @@ export async function GET() {
   }
 
   const supabase = getSupabaseAdmin();
+  await releaseMaturedReferralAccrualsForReferrer(supabase, userId);
 
   let profile: Record<string, unknown> | null = null;
   {
-    const sel = `${PROFILE_SELECT_IDENTITY}, subscription_status, subscription_plan, earnings_balance_cents`;
+    const sel = `${PROFILE_SELECT_IDENTITY}, subscription_status, subscription_plan, earnings_available_cents, earnings_pending_cents, earnings_balance_cents, pending_balance_cents`;
     const a = await supabase.from(T.profiles).select(sel).eq("id", userId).single();
     if (a.data && !a.error) {
       profile = a.data as unknown as Record<string, unknown>;
     } else if (a.error && /column .* does not exist|schema cache/i.test(a.error.message ?? "")) {
       const b = await supabase
         .from(T.profiles)
-        .select(`${PROFILE_SELECT_IDENTITY}, subscription_status, subscription_plan`)
+        .select(`${PROFILE_SELECT_IDENTITY}, subscription_status, subscription_plan, earnings_balance_cents, pending_balance_cents`)
         .eq("id", userId)
         .single();
       profile = (b.data as Record<string, unknown>) ?? null;
@@ -113,9 +118,23 @@ export async function GET() {
       0
     );
   }
-  const availableReferralCents = Number(
-    (profile as { earnings_balance_cents?: number | null }).earnings_balance_cents ?? 0
-  );
+  const availableReferralCents = readAvailableCents(profile);
+  const pendingReferralCents = readPendingCents(profile);
+
+  const { data: nextDashAccrual } = await supabase
+    .from("referral_revenue_accruals")
+    .select("created_at")
+    .eq("referrer_id", userId)
+    .is("released_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const earliestDashCreated = (nextDashAccrual as { created_at?: string | null } | null)?.created_at;
+  const nextPendingReleaseAt =
+    typeof earliestDashCreated === "string" && earliestDashCreated
+      ? eligibleReleaseIsoFromCreatedAt(earliestDashCreated)
+      : null;
+
   const referralLifetimeEarnedCents = totalPaidOutCents + availableReferralCents;
   const referralTier = referralTierFromCount(activeReferralCount);
 
@@ -187,6 +206,8 @@ export async function GET() {
       creditsEarned: referralCreditsEarned,
       lifetimeEarnedCents: referralLifetimeEarnedCents,
       availableBalanceCents: availableReferralCents,
+      pendingEarningsCents: pendingReferralCents,
+      nextPendingReleaseAt,
     },
     dailyBonus: { claimedToday: dailyBonusClaimed },
   });

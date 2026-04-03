@@ -1,31 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
+import { cutoffIsoForMaturedAccruals, REFERRAL_EARNINGS_HOLD_MS } from "@/lib/referral/earnings-hold";
 import { logMorraError } from "@/lib/logging";
 import {
   referralTierFromCount,
   TIER_PERCENT_BPS,
 } from "@/lib/referral/tiers";
+import { recordReferralGrowthFromInvoiceAccrual } from "@/lib/referral/growth-engine";
+import { countActiveValidatedReferrals } from "@/lib/referral/referral-counts";
 
 export { referralTierFromCount, TIER_PERCENT_BPS } from "@/lib/referral/tiers";
+export { REFERRAL_EARNINGS_HOLD_MS, eligibleReleaseIsoFromCreatedAt, cutoffIsoForMaturedAccruals } from "@/lib/referral/earnings-hold";
+export { countActiveValidatedReferrals } from "@/lib/referral/referral-counts";
 
-const RELEASE_DELAY_MS = 7 * 24 * 60 * 60 * 1000;
-
-export async function countActiveValidatedReferrals(
-  supabase: SupabaseClient,
-  referrerId: string
-): Promise<number> {
-  const { count, error } = await supabase
-    .from("referrals")
-    .select("*", { count: "exact", head: true })
-    .eq("referrer_id", referrerId)
-    .eq("status", "active")
-    .eq("validated", true);
-  if (error) return 0;
-  return count ?? 0;
-}
+type DueAccrual = { id: string; referrer_id: string; amount_cents: number };
 
 /**
  * When a referred user pays a subscription invoice, accrue revenue share to referrer’s pending balance.
+ * Commission stays pending until {@link REFERRAL_EARNINGS_HOLD_MS} after row `created_at`.
  */
 export async function accrueReferralRevenueFromSubscriptionInvoice(
   supabase: SupabaseClient,
@@ -45,7 +37,15 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
     .single();
   if (pErr || !payer?.referred_by) return;
 
-  const referrerId = payer.referred_by as string;
+  const referrerId = String(payer.referred_by ?? "").trim();
+  if (!referrerId || referrerId === payerUserId) return;
+
+  const { data: refProfile } = await supabase
+    .from("profiles")
+    .select("id")
+    .eq("id", referrerId)
+    .maybeSingle();
+  if (!refProfile?.id) return;
 
   const { data: ref, error: rErr } = await supabase
     .from("referrals")
@@ -68,8 +68,7 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
   const commissionCents = Math.floor((amountPaid * bps) / 10_000);
   if (commissionCents <= 0) return;
 
-  const availableAt = new Date(Date.now() + RELEASE_DELAY_MS).toISOString();
-
+  const availableAtMirror = new Date(Date.now() + REFERRAL_EARNINGS_HOLD_MS).toISOString();
   const { data: inserted, error: insErr } = await supabase
     .from("referral_revenue_accruals")
     .insert({
@@ -79,7 +78,7 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
       amount_cents: commissionCents,
       tier,
       percent_bps: bps,
-      available_at: availableAt,
+      available_at: availableAtMirror,
     })
     .select("id")
     .maybeSingle();
@@ -95,7 +94,7 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
 
   const { data: u2 } = await supabase
     .from("profiles")
-    .select("pending_balance_cents")
+    .select("earnings_pending_cents")
     .eq("id", referrerId)
     .single();
   if (!u2) {
@@ -103,17 +102,18 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
     return;
   }
 
-  let pendingPrev = u2.pending_balance_cents as number;
+  let pendingPrev = u2.earnings_pending_cents as number;
   let pendingUpdated = false;
   for (let i = 0; i < 5; i++) {
+    const nextPend = pendingPrev + commissionCents;
     const { data: up } = await supabase
       .from("profiles")
       .update({
-        pending_balance_cents: pendingPrev + commissionCents,
+        earnings_pending_cents: nextPend,
       })
       .eq("id", referrerId)
-      .eq("pending_balance_cents", pendingPrev)
-      .select("pending_balance_cents")
+      .eq("earnings_pending_cents", pendingPrev)
+      .select("earnings_pending_cents")
       .maybeSingle();
     if (up) {
       pendingUpdated = true;
@@ -121,11 +121,11 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
     }
     const { data: u3 } = await supabase
       .from("profiles")
-      .select("pending_balance_cents")
+      .select("earnings_pending_cents")
       .eq("id", referrerId)
       .single();
     if (!u3) break;
-    pendingPrev = u3.pending_balance_cents as number;
+    pendingPrev = u3.earnings_pending_cents as number;
   }
   if (!pendingUpdated) {
     await supabase.from("referral_revenue_accruals").delete().eq("id", accrualId);
@@ -133,29 +133,39 @@ export async function accrueReferralRevenueFromSubscriptionInvoice(
       referrerIdSuffix: referrerId.slice(-8),
       commissionCents,
     });
-    return;
+  } else {
+    await recordReferralGrowthFromInvoiceAccrual(supabase, {
+      referrerId,
+      referredUserId: payerUserId,
+      amountCents: commissionCents,
+      invoiceId,
+      tier,
+    });
   }
-
 }
 
 const RELEASE_BALANCE_RETRIES = 8;
 
-/**
- * Move matured accruals from pending → earnings (call before balance reads / payout).
- * Claims each accrual row atomically so concurrent cron runs cannot double-release.
- */
-/** @returns Number of accrual rows released (moved pending → earnings). */
-export async function releaseMaturedReferralAccruals(supabase: SupabaseClient): Promise<number> {
-  const now = new Date().toISOString();
-
-  const { data: due, error } = await supabase
+async function fetchDueAccruals(
+  supabase: SupabaseClient,
+  referrerIdFilter?: string
+): Promise<DueAccrual[]> {
+  const cutoffIso = cutoffIsoForMaturedAccruals();
+  let q = supabase
     .from("referral_revenue_accruals")
     .select("id, referrer_id, amount_cents")
     .is("released_at", null)
-    .lte("available_at", now);
+    .lte("created_at", cutoffIso);
+  if (referrerIdFilter) {
+    q = q.eq("referrer_id", referrerIdFilter);
+  }
+  const { data: due, error } = await q;
+  if (error || !due?.length) return [];
+  return due as DueAccrual[];
+}
 
-  if (error || !due?.length) return 0;
-
+async function releaseDueAccruals(supabase: SupabaseClient, due: DueAccrual[]): Promise<number> {
+  const now = new Date().toISOString();
   let released = 0;
 
   for (const row of due) {
@@ -179,7 +189,7 @@ export async function releaseMaturedReferralAccruals(supabase: SupabaseClient): 
     for (let attempt = 0; attempt < RELEASE_BALANCE_RETRIES; attempt++) {
       const { data: u } = await supabase
         .from("profiles")
-        .select("pending_balance_cents, earnings_balance_cents")
+        .select("earnings_pending_cents, earnings_available_cents")
         .eq("id", referrerId)
         .single();
       if (!u) {
@@ -194,8 +204,8 @@ export async function releaseMaturedReferralAccruals(supabase: SupabaseClient): 
         break;
       }
 
-      const pending = u.pending_balance_cents as number;
-      const earn = u.earnings_balance_cents as number;
+      const pending = u.earnings_pending_cents as number;
+      const avail = u.earnings_available_cents as number;
       if (pending < amt) {
         logMorraError("cron", "referral_release_pending_mismatch", {
           referrerIdSuffix: referrerId.slice(-8),
@@ -210,17 +220,17 @@ export async function releaseMaturedReferralAccruals(supabase: SupabaseClient): 
       }
 
       const nextPending = pending - amt;
-      const nextEarn = earn + amt;
+      const nextAvail = avail + amt;
 
       const { data: locked } = await supabase
         .from("profiles")
         .update({
-          pending_balance_cents: nextPending,
-          earnings_balance_cents: nextEarn,
+          earnings_pending_cents: nextPending,
+          earnings_available_cents: nextAvail,
         })
         .eq("id", referrerId)
-        .eq("pending_balance_cents", pending)
-        .eq("earnings_balance_cents", earn)
+        .eq("earnings_pending_cents", pending)
+        .eq("earnings_available_cents", avail)
         .select("id")
         .maybeSingle();
 
@@ -251,4 +261,22 @@ export async function releaseMaturedReferralAccruals(supabase: SupabaseClient): 
   }
 
   return released;
+}
+
+/** @returns Number of accrual rows released (global cron). */
+export async function releaseMaturedReferralAccruals(supabase: SupabaseClient): Promise<number> {
+  const due = await fetchDueAccruals(supabase);
+  return releaseDueAccruals(supabase, due);
+}
+
+/**
+ * Release matured accruals for one referrer (dashboard / me / payout).
+ * Idempotent per accrual row via released_at claim. Maturity = created_at + hold.
+ */
+export async function releaseMaturedReferralAccrualsForReferrer(
+  supabase: SupabaseClient,
+  referrerId: string
+): Promise<number> {
+  const due = await fetchDueAccruals(supabase, referrerId);
+  return releaseDueAccruals(supabase, due);
 }

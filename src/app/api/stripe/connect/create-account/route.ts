@@ -20,7 +20,7 @@ export async function POST() {
   const supabase = getSupabaseAdmin();
   const { data: user, error: uErr } = await supabase
     .from("profiles")
-    .select("stripe_connect_account_id, flagged")
+    .select("stripe_account_id, stripe_connect_account_id, flagged")
     .eq("id", userId)
     .single();
   if (uErr || !user) {
@@ -30,7 +30,10 @@ export async function POST() {
     return jsonError("Action temporarily limited. Please try again later.", 403);
   }
 
-  const existing = user.stripe_connect_account_id as string | null;
+  const existing =
+    (user.stripe_account_id as string | null | undefined)?.trim() ||
+    (user.stripe_connect_account_id as string | null | undefined)?.trim() ||
+    null;
   if (existing?.trim()) {
     return jsonOk({ accountId: existing, created: false });
   }
@@ -47,8 +50,12 @@ export async function POST() {
 
     const { error: upErr } = await supabase
       .from("profiles")
-      .update({ stripe_connect_account_id: account.id })
+      .update({
+        stripe_account_id: account.id,
+        stripe_connect_account_id: account.id,
+      })
       .eq("id", userId)
+      .is("stripe_account_id", null)
       .is("stripe_connect_account_id", null);
 
     if (upErr) {

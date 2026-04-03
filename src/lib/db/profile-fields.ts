@@ -10,4 +10,4 @@ export const PROFILE_SELECT_CHECKOUT =
 
 /** /api/me and similar: identity + subscription + Connect + referral balances + avatar */
 export const PROFILE_SELECT_ME =
-  "id, username, display_name, avatar_url, subscription_status, subscription_plan, stripe_connect_account_id, flagged, earnings_balance_cents, pending_balance_cents" as const;
+  "id, username, display_name, avatar_url, subscription_status, subscription_plan, stripe_account_id, stripe_connect_account_id, flagged, earnings_available_cents, earnings_pending_cents, earnings_balance_cents, pending_balance_cents" as const;

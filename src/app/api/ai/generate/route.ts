@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { getSessionUserId } from "@/lib/auth/request-user";
 import { isDuplicateAiRequest } from "@/lib/ai/dedupe";
+import { buildUserContextPrompt } from "@/lib/ai/user-context";
 import { generateAI } from "@/lib/ai/generate-ai";
 import type { AIJobType } from "@/lib/ai/config";
 import { getAiProvider } from "@/lib/ai/provider";
@@ -87,7 +88,12 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const output = await generateAI({ type: body.type, input: body.data });
+    const userContextBlock = await buildUserContextPrompt(supabase, userId);
+    const { result: output } = await generateAI({
+      type: body.type,
+      input: body.data,
+      userContextBlock,
+    });
     return jsonOk({ output });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "AI request failed";

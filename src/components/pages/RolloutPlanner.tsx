@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import { LimitReachedModal } from "@/components/LimitReachedModal";
+import { StructuredToolSections, JsonKeyValueCard } from "@/components/tools/StructuredToolSections";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Calendar as CalendarIcon, Sparkles, Check } from "lucide-react";
 import { toast } from "sonner";
 import { useMorraUser } from "@/contexts/MorraUserContext";
@@ -62,29 +65,46 @@ export function RolloutPlanner() {
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState(false);
   const [formData, setFormData] = useState({
+    releaseTitle: "",
     releaseDate: "",
     genre: "",
-    platforms: "Spotify, Apple Music, SoundCloud",
+    platforms: "Spotify, Apple Music, SoundCloud, TikTok, Instagram",
+    songDescription: "",
+    lyrics: "",
   });
   const [planWeeks, setPlanWeeks] = useState<WeekBlock[]>([]);
+  const [rolloutRaw, setRolloutRaw] = useState<Record<string, unknown> | null>(null);
+  const [toolRunId, setToolRunId] = useState<string | null>(null);
+  const [saveTitle, setSaveTitle] = useState("");
+  const [saveBusy, setSaveBusy] = useState(false);
 
   async function handleGenerate() {
     setLoading(true);
     try {
+      const title =
+        formData.releaseTitle.trim() ||
+        (formData.genre ? `${formData.genre} release` : "Release");
       const r = await fetch("/api/tools/rollout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          releaseTitle: formData.genre ? `${formData.genre} release` : "Release",
+          releaseTitle: title,
           releaseDate: formData.releaseDate,
           platforms: formData.platforms,
+          songDescription: formData.songDescription,
+          lyrics: formData.lyrics,
+          genre: formData.genre,
         }),
       });
       const j = (await r.json()) as {
         ok?: boolean;
         error?: string;
-        result?: { output?: { phases?: { week: string; focus: string; tasks: string[] }[] } };
+        result?: {
+          output?: { phases?: { week: string; focus: string; tasks: string[] }[] } & Record<string, unknown>;
+          toolRunId?: string | null;
+          qualityAttempts?: number;
+        };
       };
       if (!r.ok) {
         const br = toolBlockReasonFromResponse(r.status, j);
@@ -96,9 +116,12 @@ export function RolloutPlanner() {
         toast.error(j.error || "Could not generate plan");
         return;
       }
-      const phases = j.result?.output?.phases ?? [];
+      const out = j.result?.output ?? null;
+      setRolloutRaw(out);
+      setToolRunId(j.result?.toolRunId ?? null);
+      const phases = out?.phases ?? [];
       setPlanWeeks(
-        phases.map((p) => ({
+        (Array.isArray(phases) ? phases : []).map((p) => ({
           week: `Phase ${p.week}: ${p.focus}`,
           tasks: p.tasks.map((t) => ({
             task: t,
@@ -108,12 +131,43 @@ export function RolloutPlanner() {
         }))
       );
       setGenerated(true);
+      const att = j.result?.qualityAttempts ?? 1;
+      if (att > 1) {
+        toast.message("Plan refined", { description: `Quality passes: ${att}` });
+      }
       toast.success("Release plan generated!");
       await refresh();
     } catch {
       toast.error("Network error");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveRolloutResult() {
+    if (!toolRunId || !saveTitle.trim()) {
+      toast.error("Add a title to save");
+      return;
+    }
+    setSaveBusy(true);
+    try {
+      const r = await fetch("/api/saved-results", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toolRunId, title: saveTitle.trim() }),
+      });
+      const j = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok) {
+        toast.error(j.error || "Save failed");
+        return;
+      }
+      toast.success("Saved to your library");
+      setSaveTitle("");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaveBusy(false);
     }
   }
 
@@ -143,6 +197,16 @@ export function RolloutPlanner() {
             </h2>
             
             <div className="space-y-4">
+              <div>
+                <Label htmlFor="rtitle">Release title</Label>
+                <Input
+                  id="rtitle"
+                  placeholder="Single / EP name"
+                  value={formData.releaseTitle}
+                  onChange={(e) => setFormData({ ...formData, releaseTitle: e.target.value })}
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20 focus:border-[#00FF94]"
+                />
+              </div>
               <div>
                 <Label htmlFor="date">Release Date</Label>
                 <Input
@@ -175,16 +239,41 @@ export function RolloutPlanner() {
                   className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20 focus:border-[#00FF94]"
                 />
               </div>
+
+              <div>
+                <Label htmlFor="songDescription">Song story / positioning</Label>
+                <Textarea
+                  id="songDescription"
+                  placeholder="What is this track about? Who is it for?"
+                  value={formData.songDescription}
+                  onChange={(e) => setFormData({ ...formData, songDescription: e.target.value })}
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20 min-h-[88px]"
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="lyrics">Lyrics excerpt (optional)</Label>
+                <Textarea
+                  id="lyrics"
+                  placeholder="Paste a verse + hook for narrative-driven promo ideas"
+                  value={formData.lyrics}
+                  onChange={(e) => setFormData({ ...formData, lyrics: e.target.value })}
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20 min-h-[100px]"
+                />
+              </div>
             </div>
 
             <Button
               type="button"
               onClick={() => void handleGenerate()}
-              disabled={loading || !formData.releaseDate}
+              disabled={loading || (!formData.releaseDate && !formData.releaseTitle.trim())}
               className="w-full mt-6 bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90 shadow-[0_0_20px_rgba(0,255,148,0.3)]"
             >
-              {loading ? "Generating..." : "Generate Plan"}
+              {loading ? "Generating…" : "Generate Plan"}
             </Button>
+            <p className="text-xs text-[#707070] mt-2">
+              Add a release date or title so the model can anchor timelines.
+            </p>
           </div>
         </div>
 
@@ -201,6 +290,68 @@ export function RolloutPlanner() {
             </div>
           ) : (
             <div className="space-y-6">
+              {rolloutRaw ? <StructuredToolSections data={rolloutRaw} /> : null}
+
+              {rolloutRaw &&
+              rolloutRaw.platformStrategy &&
+              typeof rolloutRaw.platformStrategy === "object" &&
+              !Array.isArray(rolloutRaw.platformStrategy) ? (
+                <div>
+                  <h3 className="text-lg font-bold text-[#00FF94] mb-3">Platform strategy</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {Object.entries(rolloutRaw.platformStrategy as Record<string, unknown>).map(
+                      ([plat, val]) => (
+                        <JsonKeyValueCard key={plat} title={plat} value={String(val ?? "")} />
+                      )
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {rolloutRaw && Array.isArray(rolloutRaw.promotionIdeas) ? (
+                <Card className="p-5 bg-[#121212] border-[#00FF94]/20">
+                  <h3 className="text-lg font-bold text-[#00FF94] mb-3">Promotion ideas</h3>
+                  <ul className="list-decimal pl-5 space-y-2 text-[#D0D0D0] text-sm">
+                    {(rolloutRaw.promotionIdeas as unknown[]).map((x, i) => (
+                      <li key={i}>{String(x)}</li>
+                    ))}
+                  </ul>
+                </Card>
+              ) : null}
+
+              {rolloutRaw && Array.isArray(rolloutRaw.action_checklist) ? (
+                <Card className="p-5 bg-[#121212] border-[#00FF94]/20">
+                  <h3 className="text-lg font-bold text-[#00FF94] mb-3">Action checklist</h3>
+                  <ul className="list-decimal pl-5 space-y-2 text-[#D0D0D0] text-sm">
+                    {(rolloutRaw.action_checklist as unknown[]).map((x, i) => (
+                      <li key={i}>{String(x)}</li>
+                    ))}
+                  </ul>
+                </Card>
+              ) : null}
+
+              <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#00FF94]/20 flex flex-col sm:flex-row gap-3 sm:items-end">
+                <div className="flex-1">
+                  <Label>Save this plan</Label>
+                  <Input
+                    className="mt-2 bg-[#121212] border-[#00FF94]/20"
+                    placeholder="Title"
+                    value={saveTitle}
+                    onChange={(e) => setSaveTitle(e.target.value)}
+                    disabled={!toolRunId}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saveBusy || !toolRunId}
+                  onClick={() => void saveRolloutResult()}
+                  className="border-[#00FF94]/40 text-[#00FF94]"
+                >
+                  {saveBusy ? "Saving…" : "Save result"}
+                </Button>
+              </div>
+
               {(planWeeks.length ? planWeeks : timelineData).map((week, index) => (
                 <div 
                   key={index}

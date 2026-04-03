@@ -1,40 +1,59 @@
 import type { ChatMessage } from "@/lib/ai/openrouter-client";
 import type { AIJobType } from "@/lib/ai/config";
 
-const SYS_CREATIVE_JSON = `You are an expert creative AI assistant helping musicians and artists with detailed, high-quality outputs.
+const SYS_CREATIVE_JSON = `You are MORRA's senior creative director for independent musicians. You produce premium, non-generic deliverables.
 
-Rules:
-- Be specific, structured, and useful—prefer multiple paragraphs or detailed bullet-style content inside JSON string fields where appropriate.
-- Avoid shallow or generic filler; ground advice in the user’s actual inputs.
-- Output ONLY valid JSON exactly as requested—no markdown code fences, no text before or after the JSON object.`;
+STRICT RULES:
+- Output ONLY one valid JSON object. No markdown fences, no prose before/after.
+- Every string field must be substantial: concrete names, platforms, timelines, and tactics—not filler.
+- Ground everything in the user's inputs AND any USER CONTEXT block provided.
+- Include explicit reasoning (why choices fit this act) in the fields requested—never outsource reasoning to "it depends".
+- Use clear structure: think in sections (overview → deep work → action plan) even inside JSON.
+- Forbidden: vague ChatGPT phrases ("leverage synergy", "it is important to note", "as an AI").`;
+
+const ASSISTANT_PLATFORM_POLICY = `Platform facts (morra.store) — answer accurately:
+- Payments and subscriptions go through Stripe. MORRA does not store full card numbers.
+- Users **may earn** based on referrals when rules and qualifying activity are met; this is **not** guaranteed income and **not** a promise of payouts.
+- **Pending** referral amounts sit in a platform hold (about **10 days** from accrual timing) before becoming **available** to withdraw. All referral cashouts are **USD**. **Payouts are processed by Stripe and may be delayed** (including bank settlement).
+- Minimum withdrawal is typically **USD $5** of **available** balance; users must connect Stripe Connect (Express) first.
+- Credits are generally non-refundable except where the law requires otherwise.
+- Users are responsible for their own taxes; never give tax or personalized financial advice—suggest a qualified professional.
+- Never promise guaranteed earnings, specific dollar amounts, or instant withdrawals.`;
+
+function attachContext(userBody: string, userContextBlock?: string): string {
+  const c = userContextBlock?.trim();
+  if (!c) return userBody;
+  return `${c}\n\n---\n\n${userBody}`;
+}
 
 export function messagesForJob(
   type: AIJobType,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  userContextBlock?: string
 ): ChatMessage[] {
   switch (type) {
     case "bio":
-      return messagesBio(input);
+      return messagesBio(input, userContextBlock);
     case "captions":
-      return messagesCaptions(input);
+      return messagesCaptions(input, userContextBlock);
     case "rollout":
-      return messagesRollout(input);
+      return messagesRollout(input, userContextBlock);
     case "lyrics_basic":
-      return messagesLyricsBasic(input);
+      return messagesLyricsBasic(input, userContextBlock);
     case "lyrics_advanced":
-      return messagesLyricsAdvanced(input);
+      return messagesLyricsAdvanced(input, userContextBlock);
     case "cover":
-      return messagesCover(input);
+      return messagesCover(input, userContextBlock);
     case "collab":
-      return messagesCollab(input);
+      return messagesCollab(input, userContextBlock);
     case "assistant":
-      return messagesAssistant(input);
+      return messagesAssistant(input, userContextBlock);
     default:
-      return messagesBio(input);
+      return messagesBio(input, userContextBlock);
   }
 }
 
-function messagesBio(input: Record<string, unknown>): ChatMessage[] {
+function messagesBio(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const payload = JSON.stringify({
     name: input.name ?? "",
     genre: input.genre ?? "",
@@ -42,162 +61,221 @@ function messagesBio(input: Record<string, unknown>): ChatMessage[] {
     mood: input.mood ?? "",
     lyrics: input.lyrics ?? "",
   });
-  return [
-    { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Create **rich** artist branding copy for this act: multiple paragraphs where it helps, concrete imagery, no cliché “passionate artist” filler.
+  const body = attachContext(
+    `Create a **premium** artist branding pack. Cite genre + mood + influences with specific vocabulary (no clichés).
 
 Input JSON: ${payload}
 
-Return JSON keys (all string values unless noted):
-- bio: 2–4 paragraphs for website / streaming profile (vivid, credible, genre-aware).
-- epk: one longer paragraph + short bullet list as a single string (press-ready narrative).
-- social: 3–5 distinct one-liner hooks for bios (separated by newlines in one string).
-- hashtags: relevant tags as one string.
-- press: a quote-ready short paragraph + angle for blogs.`,
-    },
+Return JSON:
+- section_overview: 2–3 short paragraphs (string) — who they are for press/skimmers.
+- reasoning: 2 paragraphs (string) — why this positioning will land for this niche.
+- bio: 3–5 paragraphs for DSP / website (string).
+- epk: one narrative paragraph + bullet list in one string (press-ready).
+- social: 6–10 one-liner hooks separated by newlines in one string.
+- hashtags: one string of relevant tags.
+- press: quote-ready paragraph + angle for blogs (string).
+- action_plan: string[] — 8–12 actionable next steps (pitch playlists, content shoots, etc.).`,
+    ctx
+  );
+  return [
+    { role: "system", content: SYS_CREATIVE_JSON },
+    { role: "user", content: body },
   ];
 }
 
-function messagesCaptions(input: Record<string, unknown>): ChatMessage[] {
+function messagesCaptions(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const payload = JSON.stringify({
     name: input.name ?? "",
     genre: input.genre ?? "",
     hook: input.hook ?? "",
   });
+  const body = attachContext(
+    `Write social rollout copy with **hooks + narrative beats**—not single bland lines.
+
+Input: ${payload}
+
+Return JSON:
+- section_overview: string — strategy for rollout tone (2 short paragraphs).
+- reasoning: string — why these lines fit the act.
+- social: string — 8–12 lines (hooks, CTAs, story beats) separated by newlines.
+- hashtags: string.
+- alt_storytelling: string — BTS / diary-style block, multi-paragraph.
+- posting_plan: string[] — 7 items: what to post + suggested day offset (e.g. "Day -5: ...").`,
+    ctx
+  );
   return [
     { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Write **strong** social copy—not one bland line. Input: ${payload}
-
-Return JSON keys:
-- social: 4–6 lines (hooks, rollouts, CTAs) separated by newlines in one string.
-- hashtags: string.
-- alt: optional second block with story / behind-the-scenes angles, multi-line string.`,
-    },
+    { role: "user", content: body },
   ];
 }
 
-function messagesRollout(input: Record<string, unknown>): ChatMessage[] {
+function messagesRollout(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const payload = JSON.stringify({
     releaseTitle: input.releaseTitle ?? "Release",
     releaseDate: input.releaseDate ?? "",
     platforms: input.platforms ?? "",
     songDescription: input.songDescription ?? "",
     lyrics: input.lyrics ?? "",
+    genre: input.genre ?? "",
   });
-  return [
-    { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Build a **week-by-week release campaign** tailored to this song—not generic music-marketing advice. Use songDescription and lyrics when present for angles, content pillars, and narrative hooks.
+  const body = attachContext(
+    `Build a **release campaign system** (not generic marketing tips). Use songDescription + lyrics for angles when present.
 
 Input: ${payload}
 
 Return JSON:
-- phases: array of { week: string, focus: string, tasks: string[] } — at least 4 phases; each task specific and doable.
-- summary: 2–3 paragraphs tying the narrative, audience, and rollout story together.`,
-    },
+- section_executive: string — SECTION 1 style overview for the manager/artist (2–3 paragraphs).
+- section_opportunities: string — SECTION 2: audiences, playlists, narratives to exploit (2–3 paragraphs).
+- reasoning: string — ≥60 words: why this sequencing fits THIS release.
+- phases: array of { week: string, focus: string, tasks: string[] } — **at least 5** phases; tasks must be specific ("Email 3 remix DJs" not "promote song").
+- platformStrategy: object — keys are platform names (e.g. tiktok, instagram, spotify, youtube); each value is a multi-sentence tactic string for that platform.
+- promotionIdeas: string[] — **at least 8** concrete promo ideas (stunts, collabs, ads angles).
+- action_checklist: string[] — 10+ ordered steps from now through +2 weeks post-release.
+- risks_and_mitigations: array of { risk: string, mitigation: string } — at least 4 entries.`,
+    ctx
+  );
+  return [
+    { role: "system", content: SYS_CREATIVE_JSON },
+    { role: "user", content: body },
   ];
 }
 
-function messagesLyricsBasic(input: Record<string, unknown>): ChatMessage[] {
+function messagesLyricsBasic(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const lyrics = String(input.lyrics ?? "").slice(0, 3000);
-  return [
-    { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Honest, **structured** lyric critique—multi-paragraph reasoning in the “description” and feedback fields where useful.
+  const body = attachContext(
+    `Structured lyric critique — multi-paragraph reasoning, no fluff.
 
 Lyrics:
 ${lyrics}
 
 Return JSON:
-- emotion: { primary, secondary, intensity, description } — description 2–4 sentences.
-- rhyme: { density, scheme, quality, feedback } — feedback substantive.
-- flow: { rating, patterns, suggestions[] } — suggestions[] at least 4 strings.
-- improvements: [{ line, issue, suggestion }] max 8 entries; each suggestion actionable.
-- excerptAnalyzed: brief note on which section you focused on.
+- section_overview: string — 2 paragraphs on what the section is doing for listeners.
+- reasoning: string — why your scores/feedback follow from the text.
+- emotion: { primary, secondary, intensity, description } — description 3–6 sentences.
+- rhyme: { density, scheme, quality, feedback } — feedback substantive (no generic praise).
+- flow: { rating, patterns, suggestions } — suggestions: string[] with **at least 5** items.
+- improvements: [{ line, issue, suggestion }] — **at least 5** entries, each suggestion actionable.
+- excerptAnalyzed: string.
 - scores: { overall, writing, flow, originality } each 0–10.`,
-    },
+    ctx
+  );
+  return [
+    { role: "system", content: SYS_CREATIVE_JSON },
+    { role: "user", content: body },
   ];
 }
 
-function messagesLyricsAdvanced(input: Record<string, unknown>): ChatMessage[] {
+function messagesLyricsAdvanced(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const lyrics = String(input.lyrics ?? "").slice(0, 4000);
-  return [
-    { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Deep-dive lyric analysis: weak bars, filler, imagery, metaphor stacks, cadence, hook durability, and listener payoff. Offer **rewrite suggestions** where they help.
+  const body = attachContext(
+    `Deep A&R / writer-room analysis: imagery stacks, filler, hook durability, cadence, listener payoff.
 
 Lyrics:
 ${lyrics}
 
-Same JSON schema as basic analysis but push harder: richer description text inside emotion/rhyme/flow objects, improvements max 8, scores, and weave a 2-paragraph executive overview into the emotion.description field at the end.`,
-    },
+Return JSON with SAME keys as basic analysis but push harder:
+- section_overview: 3 paragraphs.
+- reasoning: 2 paragraphs tying weaknesses to opportunities.
+- emotion.description: include executive summary of the song arc.
+- flow.suggestions: at least 6 specific strings.
+- improvements: at least 6 entries; include rewrite directions where useful.
+- scores: { overall, writing, flow, originality } each 0–10.`,
+    ctx
+  );
+  return [
+    { role: "system", content: SYS_CREATIVE_JSON },
+    { role: "user", content: body },
   ];
 }
 
-function messagesCover(input: Record<string, unknown>): ChatMessage[] {
+function messagesCover(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const payload = JSON.stringify({
     title: input.title ?? "",
     mood: input.mood ?? "",
     style: input.style ?? "",
     colors: input.colors ?? "",
   });
-  return [
-    { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Produce **actionable** cover-art direction: 3 distinct visual concepts, each with mood, layout, and symbolic content—then one flagship AI image prompt.
-
-Input: ${payload}
-
-Return JSON keys:
-- description: 2–3 paragraphs on overall visual narrative.
-- composition: framing, negative space, focal point, typography placement.
-- colorPalette: array { name, hex, use } — 4–8 entries.
-- elements: string[] — 8–14 concrete visual elements.
-- references: string[] — 3–6 reference angles (eras, films, art movements—not copyrighted names as lift).
-- concepts: string[] — exactly 3 multi-sentence concept blurbs.
-- aiPrompt: one detailed, production-ready English prompt for an image model.`,
-    },
-  ];
-}
-
-function messagesCollab(input: Record<string, unknown>): ChatMessage[] {
-  const payload = JSON.stringify({
-    genre: input.genre ?? "",
-    location: input.location ?? "",
-  });
-  return [
-    { role: "system", content: SYS_CREATIVE_JSON },
-    {
-      role: "user",
-      content: `Suggest **3–5** plausible collaborator profiles (fictional handles ok) with depth: why the fit works, what to send them, how to stand out.
+  const body = attachContext(
+    `Art-direction pack for cover / single artwork — production-ready.
 
 Input: ${payload}
 
 Return JSON:
-- matches: [{ handle, fit, note }] — each "note" 2–4 sentences.
-- outreachTemplate: multi-paragraph DM/email template the artist can personalize.`,
-    },
+- section_overview: string — visual narrative (2–3 paragraphs).
+- reasoning: string — why these directions match the title/mood.
+- description: string — expands overview with motif language.
+- composition: string — framing, focal hierarchy, type placement, negative space.
+- colorPalette: array { name, hex, use } — **6–10** entries.
+- elements: string[] — **12–20** concrete visual elements.
+- references: string[] — **4–8** reference angles (movements, eras—no direct ripoffs).
+- concepts: string[] — **exactly 3** multi-sentence concept blurbs.
+- aiPrompt: string — one flagship English image prompt.
+- design_brief_for_designer: string — bullet-style paragraph a designer can execute.`,
+    ctx
+  );
+  return [
+    { role: "system", content: SYS_CREATIVE_JSON },
+    { role: "user", content: body },
   ];
 }
 
-function messagesAssistant(input: Record<string, unknown>): ChatMessage[] {
+function messagesCollab(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
+  const payload = JSON.stringify({
+    genre: input.genre ?? "",
+    location: input.location ?? "",
+    collaboratorType: input.collaboratorType ?? "",
+    mood: input.mood ?? "",
+  });
+  const body = attachContext(
+    `You output **ARTIST FINDER** + **COLLAB FINDER** in one JSON object (premium A&R / partnerships brief).
+
+Input: ${payload}
+
+PART A — artistMatches: fictional or composite artist names ok, but must feel **real-world plausible** (not "@user123").
+Each match MUST be an object with:
+- artist_name (string)
+- genre_match_reason (string, 2–4 sentences, cite sub-genres)
+- audience_estimate (string, e.g. "12–40k monthly listeners tier; TikTok 3–8k" — reasoned estimate)
+- collab_potential_score (number 1–10)
+- why_valuable (string, 2+ sentences)
+- outreach_strategy (string, multi-sentence: angle, timing, what to offer)
+
+Provide **at least 5** matches.
+
+PART B — collabIdeas: **between 5 and 10** objects, each with:
+- title (string)
+- detailed_concept (string, multi-paragraph — song structure, sonic palette, marketing hook)
+- why_it_fits (string, ties to USER CONTEXT + input)
+- execution_plan (string, numbered steps inside the string)
+- message_template (string, ready-to-send DM/email; fill-in placeholders like [YOUR TRACK LINK])
+
+Also include:
+- section_overview (string) — SECTION 1: executive summary for the artist.
+- reasoning (string) — SECTION 2: why this roster/ideas fit now.
+- section_action_plan (string) — SECTION 3: prioritized next 7 days.
+
+Return JSON with keys: section_overview, reasoning, section_action_plan, artistMatches, collabIdeas.`,
+    ctx
+  );
+  return [
+    { role: "system", content: SYS_CREATIVE_JSON },
+    { role: "user", content: body },
+  ];
+}
+
+function messagesAssistant(input: Record<string, unknown>, ctx?: string): ChatMessage[] {
   const msg = String(input.message ?? "");
+  const body = attachContext(msg, ctx);
   return [
     {
       role: "system",
       content: `${SYS_CREATIVE_JSON}
 
+${ASSISTANT_PLATFORM_POLICY}
+
 Return exactly one JSON object: {"reply":"..."}.
-The "reply" string must be **substantive**: by default at least ~150–400 words for non-trivial questions, with clear sections (you may use newlines and light labels like "Summary:", "Steps:", "Ideas:" inside the string). For very short factual pings, you may go shorter but never reply with a single vague sentence.`,
+The reply string must read like a **product expert**, not chat: use labeled sections (e.g. "Summary:", "Steps:", "Watch-outs:") inside the string. Default minimum ~200 words for non-trivial questions. Be specific to MORRA tools and credits where relevant.`,
     },
-    { role: "user", content: msg },
+    { role: "user", content: body },
   ];
 }

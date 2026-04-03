@@ -12,6 +12,14 @@ import { FIRST_SESSION_KEY } from "@/components/FirstTimeGiftModal";
 
 export type MeResponse = {
   ok?: boolean;
+  /** Minimum referral withdrawal in cents (USD $5 default). */
+  minPayoutCents?: number;
+  /** ISO time when the earliest unreleased accrual may move from pending to available (10-day hold from created_at). */
+  nextPendingReleaseAt?: string | null;
+  /** True when a payout is in flight (`payout_logs.status = pending`). */
+  payoutInProgress?: boolean;
+  /** Display/settlement currency for referral payouts. */
+  currency?: string;
   user?: {
     id: string;
     username: string;

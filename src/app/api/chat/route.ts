@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const reply = await runAssistantChat(body.message);
+    const reply = await runAssistantChat(body.message, { userId, supabase });
     const usesMock =
       process.env.AI_PROVIDER === "mock" || !process.env.OPENROUTER_API_KEY?.trim();
     return jsonOk({ reply, mock: usesMock });

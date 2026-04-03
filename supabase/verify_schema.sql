@@ -14,6 +14,8 @@ where n.nspname = 'public'
     'reward_events',
     'referral_revenue_accruals',
     'connect_payouts',
+    'payouts',
+    'payout_logs',
     'stripe_webhook_events',
     'transactions'
   )

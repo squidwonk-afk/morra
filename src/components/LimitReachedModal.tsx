@@ -39,8 +39,8 @@ export function LimitReachedModal({
 
   const description =
     blockReason === "free_tier_limit"
-      ? "You've used your free generation for this rolling window. Buy credits or subscribe to keep creating."
-      : "Add a credit pack or upgrade your plan to continue.";
+      ? "You've used your free generation for this rolling window. Upgrade or buy credits to continue."
+      : "Upgrade or buy credits to continue.";
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

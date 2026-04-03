@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { DailyStreakWidget } from "@/components/DailyStreakWidget";
@@ -14,7 +14,7 @@ import { useMorraUser } from "@/contexts/MorraUserContext";
 import { computeXpProgressFromLadder } from "@/lib/gamification/xp-progress";
 import { displayUsername } from "@/lib/profile/username";
 import { monthlySubscriptionCreditsForUserPlan } from "@/lib/pricing";
-import { ArrowRight, Calendar, Clock, Image, Music, Sparkles, User } from "lucide-react";
+import { ArrowRight, Calendar, Clock, CreditCard, Image, Music, Sparkles, User } from "lucide-react";
 import { toast } from "sonner";
 
 type Dash = {
@@ -96,6 +96,9 @@ export function Dashboard() {
   const [giftOpen, setGiftOpen] = useState(false);
   const [claimBusy, setClaimBusy] = useState(false);
   const [xpAnim, setXpAnim] = useState(false);
+  const [connectBusy, setConnectBusy] = useState(false);
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const connectInFlightRef = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -117,6 +120,10 @@ export function Dashboard() {
   }, [load]);
 
   useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
     if (!me?.user?.id || me.user.giftClaimed) return;
     const today = new Date().toISOString().slice(0, 10);
     if (typeof window === "undefined") return;
@@ -131,6 +138,18 @@ export function Dashboard() {
   const userHandle = displayUsername(dash?.profile?.username ?? me?.user?.username);
   const plan = dash?.profile?.plan ?? "free";
   const balance = dash?.credits?.balance ?? 0;
+  const stripeLinked = Boolean(me?.user?.stripeConnectAccountId?.trim());
+  const availableCents = me?.earnings?.availableCents ?? 0;
+  const pendingEarningsCents = me?.earnings?.pendingCents ?? 0;
+  const minPayoutCents = me?.minPayoutCents ?? 500;
+  const nextPendingReleaseAt = me?.nextPendingReleaseAt ?? null;
+  const payoutInProgress = Boolean(me?.payoutInProgress);
+  const earningsUsd = (availableCents / 100).toFixed(2);
+  const canWithdraw =
+    stripeLinked &&
+    availableCents >= minPayoutCents &&
+    !(me?.user?.flagged ?? false) &&
+    !payoutInProgress;
   const monthlyPack = monthlySubscriptionCreditsForUserPlan(plan);
   const cap = monthlyPack ?? Math.max(balance, 1);
   const creditPercent = Math.min(100, Math.round((balance / cap) * 100));
@@ -151,6 +170,70 @@ export function Dashboard() {
     } finally {
       setGiftOpen(false);
       await refresh();
+    }
+  }
+
+  async function handleWithdrawEarnings() {
+    if (withdrawBusy || !canWithdraw) return;
+    setWithdrawBusy(true);
+    try {
+      const r = await fetch("/api/stripe/payout", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const j = (await r.json()) as {
+        ok?: boolean;
+        error?: string;
+        amountCents?: number;
+      };
+      if (!r.ok) {
+        toast.error(j.error || "Withdrawal failed");
+        return;
+      }
+      const usd =
+        typeof j.amountCents === "number"
+          ? new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(
+              j.amountCents / 100
+            )
+          : null;
+      toast.success(usd ? `Sent ${usd} to your Stripe account.` : "Withdrawal sent.");
+      await refresh();
+      await load();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setWithdrawBusy(false);
+    }
+  }
+
+  async function handleConnectStripe() {
+    if (connectBusy || connectInFlightRef.current) return;
+    connectInFlightRef.current = true;
+    setConnectBusy(true);
+    try {
+      const r = await fetch("/api/stripe/connect/create", {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+      });
+      const j = (await r.json()) as { url?: string; error?: string };
+      if (!r.ok) {
+        toast.error(j.error || "Could not start Stripe setup");
+        return;
+      }
+      if (j.url) {
+        window.location.href = j.url;
+        return;
+      }
+      toast.error("No redirect URL returned");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      connectInFlightRef.current = false;
+      setConnectBusy(false);
     }
   }
 
@@ -307,6 +390,116 @@ export function Dashboard() {
             </Link>
           </div>
         </div>
+      </div>
+
+      <div className="mb-12 rounded-2xl bg-[#121212] border border-[#00FF94]/20 p-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-4">
+          <div className="flex gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#00FF94]/10 flex items-center justify-center flex-shrink-0">
+              <CreditCard className="text-[#00FF94]" size={22} />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold mb-1">Payouts / Earnings</h2>
+              <p className="text-[#A0A0A0] text-sm max-w-xl">
+                You may earn based on qualifying referrals. Payouts are processed by Stripe and may be
+                delayed (including in-app holds and bank settlement). All payouts are in USD. Nothing here
+                is guaranteed income.
+              </p>
+            </div>
+          </div>
+          <div className="text-left sm:text-right flex-shrink-0 space-y-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-[#707070] mb-1">Available</p>
+              <p className="text-2xl font-bold text-[#00FF94]">${earningsUsd}</p>
+              <p className="text-xs text-[#707070]">
+                Minimum withdrawal {new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(minPayoutCents / 100)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-wide text-[#707070] mb-1">Pending</p>
+              <p className="text-lg font-semibold text-[#E0E0E0]">
+                ${(pendingEarningsCents / 100).toFixed(2)}
+              </p>
+              {nextPendingReleaseAt && pendingEarningsCents > 0 ? (
+                <p className="text-xs text-[#707070] max-w-[220px] sm:ml-auto sm:text-right">
+                  Available in {formatDistanceToNow(new Date(nextPendingReleaseAt), { addSuffix: true })} (
+                  ~10-day hold from accrual)
+                </p>
+              ) : (
+                <p className="text-xs text-[#707070] max-w-[220px] sm:ml-auto sm:text-right">
+                  New referral earnings start in pending; they become available after a ~10-day hold.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        {stripeLinked ? (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center rounded-full bg-[#00FF94]/15 border border-[#00FF94]/40 px-4 py-1.5 text-sm font-semibold text-[#00FF94]">
+                Stripe Connected
+              </span>
+              <p className="text-sm text-[#A0A0A0]">
+                Withdraw sends your full available USD balance to Stripe (min{" "}
+                {new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(
+                  minPayoutCents / 100
+                )}
+                ). Stripe pays out to your bank on its schedule; transfers can take time.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-wrap">
+              <Button
+                type="button"
+                disabled={withdrawBusy || !canWithdraw}
+                onClick={() => void handleWithdrawEarnings()}
+                variant="outline"
+                className="border-[#00FF94]/50 text-[#00FF94] hover:bg-[#00FF94]/10 w-full sm:w-auto disabled:opacity-50"
+              >
+                {withdrawBusy ? "Withdrawing…" : "Withdraw Earnings"}
+              </Button>
+              {payoutInProgress ? (
+                <p className="text-sm text-[#E0B040]">A withdrawal is processing. Refresh in a moment.</p>
+              ) : me?.user?.flagged ? (
+                <p className="text-sm text-[#FF6B00]">Withdrawals are temporarily unavailable.</p>
+              ) : availableCents <= 0 ? (
+                <p className="text-sm text-[#707070]">No available balance to withdraw.</p>
+              ) : availableCents < minPayoutCents ? (
+                <p className="text-sm text-[#707070]">
+                  Minimum withdrawal{" "}
+                  {new Intl.NumberFormat(undefined, { style: "currency", currency: "USD" }).format(
+                    minPayoutCents / 100
+                  )}
+                  .
+                </p>
+              ) : null}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <Button
+                type="button"
+                disabled={connectBusy}
+                onClick={() => void handleConnectStripe()}
+                className="bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90 shadow-[0_0_20px_rgba(0,255,148,0.25)] w-full sm:w-auto"
+              >
+                {connectBusy ? "Connecting…" : "Connect Stripe"}
+              </Button>
+              <p className="text-sm text-[#707070]">
+                Connect Stripe first to withdraw. See the FAQ for how payouts work.
+              </p>
+            </div>
+            <Button
+              type="button"
+              disabled
+              variant="outline"
+              className="border-[#00FF94]/20 text-[#505050] w-full sm:w-auto cursor-not-allowed"
+            >
+              Withdraw Earnings
+            </Button>
+            <p className="text-sm text-[#707070]">Connect Stripe first</p>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-12">

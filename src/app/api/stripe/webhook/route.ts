@@ -15,6 +15,7 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const sig = request.headers.get("stripe-signature");
   if (!sig) {
+    logMorraError("stripe_webhook", "missing_signature", {});
     return NextResponse.json({ error: "Missing stripe-signature" }, { status: 400 });
   }
 
@@ -32,6 +33,7 @@ export async function POST(request: Request) {
     event = stripe.webhooks.constructEvent(rawBody, sig, secret);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Invalid signature";
+    logMorraError("stripe_webhook", "signature_verify_failed", { detail: msg });
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 

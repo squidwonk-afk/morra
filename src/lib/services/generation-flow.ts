@@ -7,10 +7,14 @@ import {
   hadDuplicateInputRecently,
   inputFingerprint,
 } from "@/lib/abuse/generation-guard";
-import { runToolAi } from "@/lib/ai";
+import { collabCacheKey, getDiscoveryCache, setDiscoveryCache } from "@/lib/ai/discovery-cache";
+import { runToolAiWithMeta } from "@/lib/ai";
+import { buildUserContextPrompt } from "@/lib/ai/user-context";
 import { deductCreditsOptimistic } from "@/lib/credits/optimistic-balance";
 import { isGodUsername } from "@/lib/god-mode";
 import { maybeActivateReferral } from "@/lib/referral/activation";
+import { recordPostGenerationConversionSignals } from "@/lib/conversion/track";
+import { logMorraError } from "@/lib/logging";
 import { applyLevelUpRewards } from "@/lib/services/level-up-rewards";
 
 const GENERATION_PREFIX = "generation_";
@@ -61,6 +65,10 @@ export type GenerationResult = {
   streak: number;
   leveledUp: boolean;
   levelRewardsCredits: number;
+  /** Present when tool_runs row was created */
+  toolRunId?: string | null;
+  fromCache?: boolean;
+  qualityAttempts?: number;
 };
 
 export async function runToolGeneration(
@@ -133,9 +141,38 @@ export async function runToolGeneration(
   const xpGain = xpSoFar >= XP_TOOL_CAP_PER_HOUR ? 0 : (perToolXp[tool] ?? 10);
 
   let balanceAfter = balance;
-  let output: Record<string, unknown>;
+  const userContextBlock = await buildUserContextPrompt(supabase, userId);
+
+  let output: Record<string, unknown> = {};
+  let qualityAttempts = 1;
+  let fromCache = false;
+
+  if (tool === "collab") {
+    const ck = collabCacheKey(userId, inputData, userContextBlock);
+    const hit = await getDiscoveryCache(supabase, ck);
+    if (hit) {
+      output = hit;
+      fromCache = true;
+    }
+  }
+
   try {
-    output = await runToolAi(tool, inputData);
+    if (!fromCache) {
+      const ai = await runToolAiWithMeta(tool, inputData, {
+        userId,
+        supabase,
+        userContextBlock,
+      });
+      output = ai.output;
+      qualityAttempts = ai.attempts;
+      if (tool === "collab") {
+        await setDiscoveryCache(
+          supabase,
+          collabCacheKey(userId, inputData, userContextBlock),
+          output
+        );
+      }
+    }
   } catch (e) {
     throw e;
   }
@@ -154,13 +191,51 @@ export async function runToolGeneration(
     device_id: meta?.deviceId ?? null,
   });
 
-  await supabase.from("generations").insert({
-    user_id: userId,
-    type: tool,
-    input_data: inputData,
-    output_data: output,
-    input_fingerprint: fp,
+  const balanceForSignals = isGod ? balance : creditsToCharge > 0 ? balanceAfter : balance;
+  await recordPostGenerationConversionSignals(supabase, userId, actionType, creditsToCharge, balanceForSignals, {
+    isGod,
   });
+
+  const { data: genRow, error: genInsErr } = await supabase
+    .from("generations")
+    .insert({
+      user_id: userId,
+      type: tool,
+      input_data: inputData,
+      output_data: output,
+      input_fingerprint: fp,
+    })
+    .select("id")
+    .single();
+
+  if (genInsErr || !genRow?.id) {
+    throw new Error(genInsErr?.message || "Failed to save generation.");
+  }
+
+  const { data: toolRunRow, error: toolRunInsErr } = await supabase
+    .from("tool_runs")
+    .insert({
+      user_id: userId,
+      tool_type: tool,
+      input_json: inputData,
+      output_json: output,
+      generation_id: genRow.id as string,
+      quality_attempts: qualityAttempts,
+      from_cache: fromCache,
+    })
+    .select("id")
+    .single();
+
+  const toolRunId =
+    !toolRunInsErr && toolRunRow && typeof (toolRunRow as { id?: string }).id === "string"
+      ? (toolRunRow as { id: string }).id
+      : null;
+  if (toolRunInsErr) {
+    logMorraError("ai", "tool_runs_insert_failed", {
+      detail: toolRunInsErr.message,
+      tool,
+    });
+  }
 
   await maybeActivateReferral(supabase, userId);
 
@@ -218,6 +293,9 @@ export async function runToolGeneration(
       streak: streakRes.streak,
       leveledUp,
       levelRewardsCredits,
+      toolRunId,
+      fromCache,
+      qualityAttempts,
     };
   }
 
@@ -231,5 +309,8 @@ export async function runToolGeneration(
     streak: streakRes.streak,
     leveledUp: false,
     levelRewardsCredits: 0,
+    toolRunId,
+    fromCache,
+    qualityAttempts,
   };
 }

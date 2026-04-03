@@ -3,9 +3,11 @@
  * All OpenRouter calls are server-only.
  */
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ToolKey } from "@/lib/constants/credits";
 import type { AIJobType } from "@/lib/ai/config";
 import { generateAI } from "@/lib/ai/generate-ai";
+import { buildUserContextPrompt } from "@/lib/ai/user-context";
 import { getAiProvider } from "@/lib/ai/provider";
 import {
   mockArtistIdentity,
@@ -60,27 +62,54 @@ function runMockTool(tool: ToolKey, input: Record<string, unknown>): Record<stri
   }
 }
 
-export async function runToolAi(
+export async function runToolAiWithMeta(
   tool: ToolKey,
-  input: Record<string, unknown>
-): Promise<Record<string, unknown>> {
+  input: Record<string, unknown>,
+  opts?: { userId: string; supabase: SupabaseClient; userContextBlock?: string }
+): Promise<{ output: Record<string, unknown>; attempts: number }> {
   if (getAiProvider() !== "openrouter") {
-    return runMockTool(tool, input);
+    return { output: runMockTool(tool, input), attempts: 1 };
   }
 
   const job = toolToJobType(tool, input);
-  return generateAI({ type: job, input });
+  let userContextBlock = opts?.userContextBlock;
+  if (!userContextBlock?.trim() && opts?.userId && opts?.supabase) {
+    userContextBlock = await buildUserContextPrompt(opts.supabase, opts.userId);
+  }
+  const { result, attempts } = await generateAI({
+    type: job,
+    input,
+    userContextBlock,
+  });
+  return { output: result, attempts };
 }
 
-export async function runAssistantChat(userMessage: string): Promise<string> {
+export async function runToolAi(
+  tool: ToolKey,
+  input: Record<string, unknown>,
+  opts?: { userId: string; supabase: SupabaseClient; userContextBlock?: string }
+): Promise<Record<string, unknown>> {
+  return (await runToolAiWithMeta(tool, input, opts)).output;
+}
+
+export async function runAssistantChat(
+  userMessage: string,
+  opts?: { userId?: string; supabase?: SupabaseClient }
+): Promise<string> {
   if (getAiProvider() !== "openrouter") {
     const { mockChatReply } = await import("@/lib/mock/generators");
     return mockChatReply(userMessage);
   }
 
-  const out = await generateAI({
+  let userContextBlock: string | undefined;
+  if (opts?.userId && opts?.supabase) {
+    userContextBlock = await buildUserContextPrompt(opts.supabase, opts.userId);
+  }
+
+  const { result: out } = await generateAI({
     type: "assistant",
     input: { message: userMessage },
+    userContextBlock,
   });
   const reply = out.reply ?? out.text;
   return typeof reply === "string" ? reply : JSON.stringify(out);

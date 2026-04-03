@@ -12,6 +12,11 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useMorraUser } from "@/contexts/MorraUserContext";
+import {
+  StripeOnboardingRegionNote,
+  StripePayoutWithdrawClarifications,
+  stripeErrorSuggestsRegionalLimit,
+} from "@/components/legal/StripePayoutRegionMessaging";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -29,14 +34,14 @@ function formatUsd(cents: number) {
   }).format(cents / 100);
 }
 
-const MIN_PAYOUT_CENTS = 1000;
-
 export function Payouts() {
   const { me, refresh } = useMorraUser();
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState<PayoutRow[]>([]);
+  const [payoutRegionalEmphasis, setPayoutRegionalEmphasis] = useState(false);
 
   const availableCents = me?.earnings?.availableCents ?? 0;
+  const minPayoutCents = me?.minPayoutCents ?? 500;
   const pendingCents = me?.earnings?.pendingCents ?? 0;
   const lifetimeCents = availableCents + pendingCents;
   const stripeConnected = Boolean(me?.user?.stripeConnectAccountId);
@@ -92,9 +97,12 @@ export function Payouts() {
       });
       const j = (await r.json()) as { error?: string };
       if (!r.ok) {
-        toast.error(j.error || "Withdrawal failed");
+        const msg = j.error || "Withdrawal failed";
+        if (stripeErrorSuggestsRegionalLimit(msg)) setPayoutRegionalEmphasis(true);
+        toast.error(msg);
         return;
       }
+      setPayoutRegionalEmphasis(false);
       toast.success("Funds sent to your connected account.");
       await refresh();
       const h = await fetch("/api/stripe/payout-history", { credentials: "include" });
@@ -128,7 +136,7 @@ export function Payouts() {
             <span className="text-[#A0A0A0]">Available</span>
           </div>
           <p className="text-4xl font-bold text-[#00FF94] mb-1">{formatUsd(availableCents)}</p>
-          <p className="text-sm text-[#A0A0A0]">Ready to withdraw (min {formatUsd(MIN_PAYOUT_CENTS)})</p>
+          <p className="text-sm text-[#A0A0A0]">Ready to withdraw (min {formatUsd(minPayoutCents)})</p>
         </div>
 
         <div className="p-6 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
@@ -170,6 +178,7 @@ export function Payouts() {
               <span className="text-[#ff4444] text-sm font-semibold">Not connected</span>
             </div>
           )}
+          {!stripeConnected ? <StripeOnboardingRegionNote className="mb-4" /> : null}
           <Button
             type="button"
             onClick={() => void connectStripe()}
@@ -196,12 +205,16 @@ export function Payouts() {
               busy ||
               flagged ||
               !stripeConnected ||
-              availableCents < MIN_PAYOUT_CENTS
+              availableCents < minPayoutCents
             }
             className="w-full bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90 disabled:opacity-50"
           >
             {busy ? "Processing…" : "Withdraw available balance"}
           </Button>
+          <StripePayoutWithdrawClarifications
+            className="mt-4"
+            emphasizeRegionalLimit={payoutRegionalEmphasis}
+          />
           {flagged && (
             <p className="text-xs text-[#ff4444] mt-3">Withdrawals are temporarily unavailable.</p>
           )}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { PostToolConversionCta } from "@/components/conversion/PostToolConversionCta";
 import { LimitReachedModal } from "@/components/LimitReachedModal";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,6 +47,8 @@ const emptyAnalysis: Analysis = {
   improvements: [],
 };
 
+const LYRICS_PREFILL_KEY = "morra_lyrics_prefill";
+
 export function LyricAnalyzer() {
   const { refresh } = useMorraUser();
   const [limitOpen, setLimitOpen] = useState(false);
@@ -57,6 +60,17 @@ export function LyricAnalyzer() {
   const [loading, setLoading] = useState(false);
   const [analyzed, setAnalyzed] = useState(false);
   const [analysis, setAnalysis] = useState<Analysis>(emptyAnalysis);
+
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem(LYRICS_PREFILL_KEY);
+      if (!raw?.trim()) return;
+      sessionStorage.removeItem(LYRICS_PREFILL_KEY);
+      setLyrics(raw);
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   async function handleAnalyze() {
     setLoading(true);
@@ -269,6 +283,8 @@ export function LyricAnalyzer() {
                   ))}
                 </div>
               </div>
+
+              <PostToolConversionCta className="mt-6" />
             </>
           )}
         </div>

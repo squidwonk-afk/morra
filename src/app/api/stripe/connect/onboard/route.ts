@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const supabase = getSupabaseAdmin();
   const { data: user, error: uErr } = await supabase
     .from("profiles")
-    .select("stripe_connect_account_id, flagged")
+    .select("stripe_account_id, stripe_connect_account_id, flagged")
     .eq("id", userId)
     .single();
   if (uErr || !user) {
@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
     return jsonError("Action temporarily limited. Please try again later.", 403);
   }
 
-  const accountId = user.stripe_connect_account_id as string | null;
+  const accountId =
+    (user.stripe_account_id as string | null | undefined)?.trim() ||
+    (user.stripe_connect_account_id as string | null | undefined)?.trim() ||
+    null;
   if (!accountId?.trim()) {
     return jsonError("Create a Connect account first.", 400);
   }

@@ -95,7 +95,20 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t border-border/50">
+        <div className="mt-12 pt-8 border-t border-border/50 space-y-3">
+          <p className="text-center text-[#A0A0A0] text-sm">
+            <Link href="/terms" className="text-[#A0A0A0] hover:text-[#00FF94] transition-colors">
+              Terms
+            </Link>
+            <span className="mx-2 text-[#505050]">|</span>
+            <Link href="/privacy" className="text-[#A0A0A0] hover:text-[#00FF94] transition-colors">
+              Privacy
+            </Link>
+            <span className="mx-2 text-[#505050]">|</span>
+            <Link href="/faq" className="text-[#A0A0A0] hover:text-[#00FF94] transition-colors">
+              FAQ
+            </Link>
+          </p>
           <p className="text-center text-[#A0A0A0] text-sm">
             © {new Date().getFullYear()} MORRA. morra.store
           </p>

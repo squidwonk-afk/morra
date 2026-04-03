@@ -4,6 +4,11 @@ import { PROFILE_SELECT_ME } from "@/lib/db/profile-fields";
 import { T } from "@/lib/db/morra-prod-tables";
 import { isGodUsername } from "@/lib/god-mode";
 import { displayUsername } from "@/lib/profile/username";
+import { eligibleReleaseIsoFromCreatedAt } from "@/lib/referral/earnings-hold";
+import { readAvailableCents, readPendingCents } from "@/lib/referral/profile-earnings";
+import { clearStalePendingPayoutLogs } from "@/lib/referral/payout-stale";
+import { releaseMaturedReferralAccrualsForReferrer } from "@/lib/referral/revenue-share";
+import { MIN_PAYOUT_CENTS } from "@/lib/referrals/payout-min";
 import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
 
@@ -35,6 +40,8 @@ export async function GET() {
   }
 
   const supabase = getSupabaseAdmin();
+  await releaseMaturedReferralAccrualsForReferrer(supabase, userId);
+  await clearStalePendingPayoutLogs(supabase, userId);
 
   let profileRow: Record<string, unknown> | null = null;
 
@@ -90,17 +97,37 @@ export async function GET() {
     .eq("user_id", userId)
     .single();
 
+  const { data: nextAccrual } = await supabase
+    .from("referral_revenue_accruals")
+    .select("created_at")
+    .eq("referrer_id", userId)
+    .is("released_at", null)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  const earliestCreated = (nextAccrual as { created_at?: string | null } | null)?.created_at;
+  const nextPendingReleaseAt =
+    typeof earliestCreated === "string" && earliestCreated
+      ? eligibleReleaseIsoFromCreatedAt(earliestCreated)
+      : null;
+
+  const { data: inflightPayout } = await supabase
+    .from("payout_logs")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .limit(1)
+    .maybeSingle();
+  const payoutInProgress = Boolean(inflightPayout?.id);
+
   const rawUsername =
     typeof profile.username === "string" ? profile.username.trim() : "";
   const usernameForDisplay = displayUsername(profile.username);
   const isGod = isGodUsername(rawUsername);
 
-  const availableCents = Number(
-    (profile as { earnings_balance_cents?: number | null }).earnings_balance_cents ?? 0
-  );
-  const pendingCents = Number(
-    (profile as { pending_balance_cents?: number | null }).pending_balance_cents ?? 0
-  );
+  const availableCents = readAvailableCents(profile);
+  const pendingCents = readPendingCents(profile);
 
   const { data: giftRow } = await supabase
     .from("reward_events")
@@ -121,6 +148,10 @@ export async function GET() {
 
   return jsonOk({
     id: profile.id,
+    minPayoutCents: MIN_PAYOUT_CENTS,
+    nextPendingReleaseAt,
+    payoutInProgress,
+    currency: "usd",
     username: usernameForDisplay,
     display_name: profile.display_name,
     avatar_url: avatarUrl,
@@ -146,8 +177,12 @@ export async function GET() {
       subscriptionPlan: (profile as { subscription_plan?: string | null }).subscription_plan ?? null,
       subscriptionCurrentPeriodEnd: null,
       lastCreditRefresh: null,
-      stripeConnectAccountId:
-        (profile as { stripe_connect_account_id?: string | null }).stripe_connect_account_id ?? null,
+      stripeConnectAccountId: (() => {
+        const a = (profile as { stripe_account_id?: string | null }).stripe_account_id?.trim();
+        if (a) return a;
+        const b = (profile as { stripe_connect_account_id?: string | null }).stripe_connect_account_id?.trim();
+        return b || null;
+      })(),
       flagged: Boolean((profile as { flagged?: boolean | null }).flagged),
     },
     credits: { balance: isGod ? 1_000_000_000 : balance },

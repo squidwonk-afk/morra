@@ -1,13 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { LimitReachedModal } from "@/components/LimitReachedModal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { StructuredToolSections, JsonKeyValueCard } from "@/components/tools/StructuredToolSections";
+import {
+  toolBlockReasonFromResponse,
+  type ToolBlockReason,
+} from "@/lib/client/tool-api-error";
+import { useMorraUser } from "@/contexts/MorraUserContext";
 import { toast } from "sonner";
-import { Users, Search, AtSign, Sparkles, Camera, Music2, Link as LinkIcon } from "lucide-react";
+import { Users, Search, AtSign, Sparkles, Camera, Music2, Link as LinkIcon, Wand2 } from "lucide-react";
 
 type Socials = {
   instagram: string;
@@ -103,7 +111,22 @@ function spotifyUrl(url: string): string | null {
 }
 
 export function CollabFinder() {
-  const [view, setView] = useState<"discover" | "profile">("discover");
+  const { refresh } = useMorraUser();
+  const [view, setView] = useState<"discover" | "profile" | "ai">("discover");
+  const [limitOpen, setLimitOpen] = useState(false);
+  const [blockReason, setBlockReason] = useState<ToolBlockReason>("insufficient_credits");
+
+  const [aiBusy, setAiBusy] = useState(false);
+  const [saveTitle, setSaveTitle] = useState("");
+  const [saveResultBusy, setSaveResultBusy] = useState(false);
+  const [toolRunId, setToolRunId] = useState<string | null>(null);
+  const [aiOut, setAiOut] = useState<Record<string, unknown> | null>(null);
+  const [aiForm, setAiForm] = useState({
+    genre: "",
+    location: "",
+    collaboratorType: "",
+    mood: "",
+  });
 
   // Discover filters
   const [filters, setFilters] = useState({
@@ -260,8 +283,95 @@ export function CollabFinder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
+  async function runAiCollab() {
+    setAiBusy(true);
+    setToolRunId(null);
+    try {
+      const r = await fetch("/api/tools/collab", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          genre: aiForm.genre.trim() || "open",
+          location: aiForm.location.trim() || "global",
+          collaboratorType: aiForm.collaboratorType.trim(),
+          mood: aiForm.mood.trim(),
+        }),
+      });
+      const j = (await r.json()) as {
+        ok?: boolean;
+        error?: string;
+        result?: {
+          output?: Record<string, unknown>;
+          toolRunId?: string | null;
+          qualityAttempts?: number;
+          fromCache?: boolean;
+        };
+      };
+      if (!r.ok) {
+        const br = toolBlockReasonFromResponse(r.status, j);
+        if (br) {
+          setBlockReason(br);
+          setLimitOpen(true);
+          return;
+        }
+        toast.error(j.error || "AI run failed");
+        return;
+      }
+      const out = j.result?.output ?? null;
+      setAiOut(out);
+      setToolRunId(j.result?.toolRunId ?? null);
+      const attempts = j.result?.qualityAttempts ?? 1;
+      if (attempts > 1) {
+        toast.message("Output refined", { description: `Quality pass ${attempts}` });
+      }
+      if (j.result?.fromCache) {
+        toast.message("Loaded cached results", { description: "Same inputs within 24h — instant response." });
+      } else {
+        toast.success("AI strategy ready");
+      }
+      await refresh();
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setAiBusy(false);
+    }
+  }
+
+  async function saveAiResult() {
+    if (!toolRunId || !saveTitle.trim()) {
+      toast.error("Add a title to save");
+      return;
+    }
+    setSaveResultBusy(true);
+    try {
+      const r = await fetch("/api/saved-results", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toolRunId, title: saveTitle.trim() }),
+      });
+      const j = (await r.json()) as { ok?: boolean; error?: string };
+      if (!r.ok) {
+        toast.error(j.error || "Save failed");
+        return;
+      }
+      toast.success("Saved to your library");
+      setSaveTitle("");
+    } catch {
+      toast.error("Network error");
+    } finally {
+      setSaveResultBusy(false);
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
+      <LimitReachedModal
+        isOpen={limitOpen}
+        onClose={() => setLimitOpen(false)}
+        blockReason={blockReason}
+      />
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-3">
           <span className="text-[#00FF94]">Collab</span> Finder
@@ -269,7 +379,7 @@ export function CollabFinder() {
         <p className="text-xl text-[#A0A0A0]">Find artists and connect off-platform (privacy-first)</p>
       </div>
 
-      <div className="flex gap-4 mb-8">
+      <div className="flex flex-wrap gap-4 mb-8">
         <Button
           onClick={() => setView("discover")}
           variant={view === "discover" ? "default" : "outline"}
@@ -281,6 +391,18 @@ export function CollabFinder() {
         >
           <Search className="mr-2" size={18} />
           Discover Artists
+        </Button>
+        <Button
+          onClick={() => setView("ai")}
+          variant={view === "ai" ? "default" : "outline"}
+          className={
+            view === "ai"
+              ? "bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90"
+              : "border-[#00FF94]/30 text-[#00FF94] hover:bg-[#00FF94]/10"
+          }
+        >
+          <Wand2 className="mr-2" size={18} />
+          AI Artist + Collab Strategy
         </Button>
         <Button
           onClick={() => setView("profile")}
@@ -295,6 +417,135 @@ export function CollabFinder() {
           My Profile
         </Button>
       </div>
+
+      {view === "ai" ? (
+        <div className="space-y-8">
+          <div className="p-6 rounded-2xl bg-[#121212] border border-[#00FF94]/20">
+            <h2 className="text-xl font-bold mb-2 flex items-center gap-2">
+              <Sparkles className="text-[#00FF94]" size={22} />
+              Premium AI: Artist matches + collab ideas
+            </h2>
+            <p className="text-sm text-[#A0A0A0] mb-6 max-w-3xl">
+              Uses your saved profile + extended artist context. Results are structured sections—not chat.
+              Identical requests may load from cache for 24h.
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div>
+                <Label>Genre focus</Label>
+                <Input
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20"
+                  value={aiForm.genre}
+                  onChange={(e) => setAiForm({ ...aiForm, genre: e.target.value })}
+                  placeholder="e.g. melodic trap"
+                />
+              </div>
+              <div>
+                <Label>Location / scene</Label>
+                <Input
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20"
+                  value={aiForm.location}
+                  onChange={(e) => setAiForm({ ...aiForm, location: e.target.value })}
+                  placeholder="e.g. Atlanta, online-first"
+                />
+              </div>
+              <div>
+                <Label>Collaborator type (optional)</Label>
+                <Input
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20"
+                  value={aiForm.collaboratorType}
+                  onChange={(e) => setAiForm({ ...aiForm, collaboratorType: e.target.value })}
+                  placeholder="producer, vocalist, topliner…"
+                />
+              </div>
+              <div>
+                <Label>Mood / sonic (optional)</Label>
+                <Input
+                  className="mt-2 bg-[#0A0A0A] border-[#00FF94]/20"
+                  value={aiForm.mood}
+                  onChange={(e) => setAiForm({ ...aiForm, mood: e.target.value })}
+                  placeholder="e.g. late-night, tense, hopeful"
+                />
+              </div>
+            </div>
+            <Button
+              type="button"
+              disabled={aiBusy}
+              onClick={() => void runAiCollab()}
+              className="bg-[#00FF94] text-[#0A0A0A] hover:bg-[#00FF94]/90"
+            >
+              {aiBusy ? "Generating…" : "Generate strategy"}
+            </Button>
+          </div>
+
+          {aiOut ? (
+            <div>
+              <StructuredToolSections data={aiOut} />
+
+              <h3 className="text-lg font-bold mb-3 text-[#00FF94]">Artist matches</h3>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+                {(Array.isArray(aiOut.artistMatches) ? aiOut.artistMatches : []).map((raw, i) => {
+                  const m = raw as Record<string, unknown>;
+                  return (
+                    <Card key={i} className="p-4 bg-[#121212] border-[#00FF94]/20">
+                      <p className="font-bold text-lg mb-2">{String(m.artist_name ?? `Match ${i + 1}`)}</p>
+                      <p className="text-xs text-[#707070] mb-1">Fit score</p>
+                      <p className="text-[#00FF94] font-semibold mb-2">
+                        {String(m.collab_potential_score ?? "—")}/10
+                      </p>
+                      <JsonKeyValueCard title="Genre match" value={String(m.genre_match_reason ?? "")} />
+                      <div className="mt-2 space-y-2">
+                        <JsonKeyValueCard title="Audience (estimate)" value={String(m.audience_estimate ?? "")} />
+                        <JsonKeyValueCard title="Why valuable" value={String(m.why_valuable ?? "")} />
+                        <JsonKeyValueCard title="Outreach strategy" value={String(m.outreach_strategy ?? "")} />
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              <h3 className="text-lg font-bold mb-3 text-[#00FF94]">Collab ideas</h3>
+              <div className="space-y-4 mb-8">
+                {(Array.isArray(aiOut.collabIdeas) ? aiOut.collabIdeas : []).map((raw, i) => {
+                  const c = raw as Record<string, unknown>;
+                  return (
+                    <Card key={i} className="p-5 bg-[#121212] border-[#00FF94]/20">
+                      <p className="font-bold text-[#E8E8E8] mb-2">{String(c.title ?? `Idea ${i + 1}`)}</p>
+                      <JsonKeyValueCard title="Concept" value={String(c.detailed_concept ?? "")} />
+                      <div className="mt-2 space-y-2">
+                        <JsonKeyValueCard title="Why it fits you" value={String(c.why_it_fits ?? "")} />
+                        <JsonKeyValueCard title="Execution plan" value={String(c.execution_plan ?? "")} />
+                        <JsonKeyValueCard title="Ready-to-send template" value={String(c.message_template ?? "")} />
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+
+              <div className="p-4 rounded-xl bg-[#0A0A0A] border border-[#00FF94]/20 flex flex-col sm:flex-row gap-3 sm:items-end">
+                <div className="flex-1">
+                  <Label>Save this run</Label>
+                  <Input
+                    className="mt-2 bg-[#121212] border-[#00FF94]/20"
+                    placeholder="Title for your library"
+                    value={saveTitle}
+                    onChange={(e) => setSaveTitle(e.target.value)}
+                    disabled={!toolRunId}
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saveResultBusy || !toolRunId}
+                  onClick={() => void saveAiResult()}
+                  className="border-[#00FF94]/40 text-[#00FF94]"
+                >
+                  {saveResultBusy ? "Saving…" : "Save result"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {view === "discover" ? (
         <div>
