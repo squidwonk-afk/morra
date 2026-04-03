@@ -177,6 +177,8 @@ export async function POST(req: NextRequest) {
     ...morraSessionCookieBase(req),
     maxAge,
   });
+  // eslint-disable-next-line no-console
+  console.log("SESSION SET");
   logMorraSessionCookieSet("signup", req, { maxAgeSec: maxAge });
   if (needNewDeviceCookie) {
     setDeviceCookieOnResponse(res, cookieDevice, req);

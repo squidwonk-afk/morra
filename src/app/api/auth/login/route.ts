@@ -68,6 +68,8 @@ export async function POST(req: NextRequest) {
     ...morraSessionCookieBase(req),
     maxAge,
   });
+  // eslint-disable-next-line no-console
+  console.log("SESSION SET");
   logMorraSessionCookieSet("login", req, { maxAgeSec: maxAge });
   return res;
 }

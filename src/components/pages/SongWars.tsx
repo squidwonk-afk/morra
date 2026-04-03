@@ -30,6 +30,11 @@ import {
 import { toast } from "sonner";
 import { CREDIT_COSTS } from "@/lib/constants/credits";
 import { parseDate } from "@/lib/datetime/safe-date";
+import {
+  parseSongWarsScheduleFromJson,
+  type SongWarsScheduleFields,
+} from "@/lib/songwars/schedule-public";
+import { SongWarsNextEventPanel, SongWarsScheduleSubtitle } from "@/components/songwars/SongWarsNextEventPanel";
 
 type SongWarInsightPayload = {
   submissionId: string;
@@ -112,7 +117,7 @@ type EventPayload = {
     prizeCreditsPaid: number[];
     prizeCreditsFree: number[];
   };
-};
+} & Partial<SongWarsScheduleFields>;
 
 function msToCountdown(targetIso: string): string {
   const parsed = parseDate(targetIso);
@@ -187,16 +192,19 @@ export function SongWars() {
   const [insightsErr, setInsightsErr] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   const [loginPromptOpen, setLoginPromptOpen] = useState(false);
+  const [schedule, setSchedule] = useState<SongWarsScheduleFields | null>(null);
 
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/songwars/event", { credentials: "include", cache: "no-store" });
       const j = (await r.json()) as EventPayload & { ok?: boolean; error?: string; event?: EventPayload["event"] | null };
+      const asRecord = j as unknown as Record<string, unknown>;
       if (!r.ok || j.available === false || j.comingSoon) {
         setFeatureUnavailable(true);
         setEmptyEvent(false);
         setLoadErr(null);
         setPayload(null);
+        setSchedule(null);
         return;
       }
       setFeatureUnavailable(false);
@@ -204,10 +212,12 @@ export function SongWars() {
         setEmptyEvent(true);
         setLoadErr(null);
         setPayload(null);
+        setSchedule(parseSongWarsScheduleFromJson(asRecord));
         return;
       }
       setEmptyEvent(false);
       setLoadErr(null);
+      setSchedule(parseSongWarsScheduleFromJson(asRecord));
       const next = j as EventPayload;
       setPayload((prev) => {
         if (prev && JSON.stringify(prev) === JSON.stringify(next)) return prev;
@@ -218,6 +228,7 @@ export function SongWars() {
       setEmptyEvent(false);
       setLoadErr("Something went wrong. Please try again.");
       setPayload(null);
+      setSchedule(null);
     }
   }, []);
 
@@ -422,10 +433,12 @@ export function SongWars() {
       <div className="max-w-lg mx-auto text-center py-20 px-4">
         <Trophy className="mx-auto text-[#00FF94] mb-4" size={48} />
         <h1 className="text-3xl font-bold text-white mb-2">Song Wars</h1>
-        <p className="text-xl text-[#E0E0E0] mb-3">No active events yet</p>
-        <p className="text-sm text-[#707070] leading-relaxed">
-          When the next tournament opens, you&apos;ll be able to join and submit tracks from this page.
+        <p className="text-xl text-[#E0E0E0] mb-3">No active tournament right now</p>
+        <p className="text-sm text-[#707070] leading-relaxed mb-8">
+          When the next event opens, you&apos;ll join and submit tracks from this page. Tournaments run every two
+          weeks on Friday at 9:00 PM US Central.
         </p>
+        <SongWarsNextEventPanel schedule={schedule} variant="page" />
         <Link href="/app" className="inline-block mt-10 text-[#00FF94] hover:underline font-medium">
           Back to dashboard
         </Link>
@@ -446,6 +459,12 @@ export function SongWars() {
           Bi-weekly tournament. Up to 30 artists per event; overflow joins a fair queue for the next one.
           Four AI judges score anonymously, see Terms for disclaimers.
         </p>
+        {schedule ? (
+          <SongWarsScheduleSubtitle
+            next_event_start={schedule.next_event_start}
+            next_event_label_chicago={schedule.next_event_label_chicago}
+          />
+        ) : null}
       </div>
 
       {loadErr ? (

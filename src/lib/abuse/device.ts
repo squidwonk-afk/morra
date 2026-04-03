@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import type { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { DEVICE_COOKIE_NAME } from "@/lib/abuse/device-constants";
-import { resolveCookieSecure } from "@/lib/auth/session-cookie";
+import { morraSessionSecureFlag } from "@/lib/auth/session-cookie";
 
 export { DEVICE_COOKIE_NAME, DEVICE_LOCALSTORAGE_KEY } from "@/lib/abuse/device-constants";
 
@@ -20,7 +20,7 @@ export function setDeviceCookieOnResponse(
 ): void {
   res.cookies.set(DEVICE_COOKIE_NAME, deviceId, {
     httpOnly: true,
-    secure: resolveCookieSecure(req),
+    secure: morraSessionSecureFlag(),
     sameSite: "lax",
     path: "/",
     maxAge: COOKIE_MAX_AGE_SEC,

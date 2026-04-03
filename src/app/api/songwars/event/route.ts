@@ -9,18 +9,22 @@ import {
 } from "@/lib/songwars/constants";
 import { isSongwarsUnavailableError } from "@/lib/songwars/availability";
 import { getEventPublicPayload, SongWarsNoActiveEventError } from "@/lib/songwars/service";
+import { getSongWarsScheduleFields } from "@/lib/songwars/schedule";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   if (!isSupabaseConfigured()) return jsonError("Server is not configured.", 503);
   const userId = await getSessionUserId();
+  const supabase = getSupabaseAdmin();
+  const schedule = await getSongWarsScheduleFields(supabase);
 
   try {
-    const payload = await getEventPublicPayload(getSupabaseAdmin(), userId);
+    const payload = await getEventPublicPayload(supabase, userId);
     return jsonOk({
       available: true,
       ...payload,
+      ...schedule,
       rules: {
         maxParticipants: MAX_PARTICIPANTS_DEFAULT,
         maxSubmissionsPerUser: MAX_SUBMISSIONS_PER_USER,
@@ -30,7 +34,7 @@ export async function GET() {
     });
   } catch (e) {
     if (isSongwarsUnavailableError(e)) {
-      return jsonOk({ available: false, comingSoon: true });
+      return jsonOk({ available: false, comingSoon: true, ...schedule });
     }
     if (e instanceof SongWarsNoActiveEventError) {
       return jsonOk({
@@ -48,6 +52,7 @@ export async function GET() {
           totalSubmissions: 0,
           tracksEntered: 0,
         },
+        ...schedule,
         rules: {
           maxParticipants: MAX_PARTICIPANTS_DEFAULT,
           maxSubmissionsPerUser: MAX_SUBMISSIONS_PER_USER,

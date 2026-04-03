@@ -13,6 +13,8 @@ import { getSupabaseAdmin, isSupabaseConfigured } from "@/lib/supabase/admin";
 import { jsonError, jsonOk } from "@/lib/http";
 
 export const runtime = "nodejs";
+/** Ensure `cookies()` / session is evaluated per request (not statically cached). */
+export const dynamic = "force-dynamic";
 
 const PROFILE_SELECT_FALLBACK =
   "id, username, display_name, subscription_status, subscription_plan, stripe_connect_account_id, flagged, earnings_balance_cents, pending_balance_cents" as const;

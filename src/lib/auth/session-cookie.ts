@@ -1,38 +1,22 @@
 import type { NextRequest } from "next/server";
 
 /**
- * Whether the session cookie should use the Secure flag.
- * - Never Secure on non-production (local http:// dev servers).
- * - In production: follow the incoming request (x-forwarded-proto / URL), or trust Vercel (always HTTPS).
- * Setting Secure=true while the user is on http:// (e.g. `next start` on localhost) causes the browser to
- * reject Set-Cookie, so login appears to succeed but the session never sticks.
+ * Session cookie `Secure` flag: `true` when NODE_ENV is production.
+ * Set `MORRA_SESSION_INSECURE_COOKIES=1` if you run `next start` on http:// (browser rejects Secure cookies on plain HTTP).
+ * Never set `domain` on morra_session (host-only cookie; works on Vercel apex and previews).
  */
-export function resolveCookieSecure(req?: NextRequest): boolean {
-  if (process.env.NODE_ENV !== "production") {
-    return false;
-  }
-  if (req) {
-    const forwarded = req.headers.get("x-forwarded-proto");
-    if (forwarded) {
-      return forwarded.split(",")[0]?.trim() === "https";
-    }
-    return req.nextUrl.protocol === "https:";
-  }
-  if (process.env.VERCEL === "1") {
-    return true;
-  }
-  return false;
+export function morraSessionSecureFlag(): boolean {
+  if (process.env.MORRA_SESSION_INSECURE_COOKIES === "1") return false;
+  return process.env.NODE_ENV === "production";
 }
 
 /**
- * morra_session options: stable path, no domain (works on Vercel apex and preview URLs).
- * `secure` follows the request protocol in production (see resolveCookieSecure).
+ * morra_session options: stable path, no domain.
  */
-export function morraSessionCookieBase(req?: NextRequest) {
-  const secure = resolveCookieSecure(req);
+export function morraSessionCookieBase(_req?: NextRequest) {
   return {
     httpOnly: true as const,
-    secure,
+    secure: morraSessionSecureFlag(),
     sameSite: "lax" as const,
     path: "/",
   };

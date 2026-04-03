@@ -7,6 +7,11 @@ import { Trophy, Users, Radio, Sparkles, ArrowRight } from "lucide-react";
 import { useMorraUser } from "@/contexts/MorraUserContext";
 import { parseDate, toIsoStringOrNull } from "@/lib/datetime/safe-date";
 import { isSongwarsSubmissionsPhaseStatus } from "@/lib/songwars/constants";
+import {
+  parseSongWarsScheduleFromJson,
+  type SongWarsScheduleFields,
+} from "@/lib/songwars/schedule-public";
+import { SongWarsNextEventPanel } from "@/components/songwars/SongWarsNextEventPanel";
 
 type EventPayload = {
   ok?: boolean;
@@ -47,6 +52,9 @@ export function SongWarsLandingHero() {
   const [showTournamentUi, setShowTournamentUi] = useState(false);
   /** Schema OK but no event row / creation failed — show dominant hero + message. */
   const [noActiveEventMode, setNoActiveEventMode] = useState(false);
+  const [idleSchedule, setIdleSchedule] = useState<SongWarsScheduleFields | null>(null);
+  /** Schedule fields when a live payload exists (e.g. event between phases). */
+  const [liveSchedule, setLiveSchedule] = useState<SongWarsScheduleFields | null>(null);
   const [ready, setReady] = useState(false);
   const [, bumpClock] = useReducer((n: number) => n + 1, 0);
 
@@ -59,24 +67,33 @@ export function SongWarsLandingHero() {
         if (cancelled) return;
         const live = r.ok && j.available !== false && !j.comingSoon && Boolean(j.event);
         const idle = r.ok && j.available !== false && !j.comingSoon && j.noActiveEvent;
+        const rec = j as unknown as Record<string, unknown>;
         if (live) {
           setPayload(j);
           setShowTournamentUi(true);
           setNoActiveEventMode(false);
+          setIdleSchedule(null);
+          setLiveSchedule(parseSongWarsScheduleFromJson(rec));
         } else if (idle) {
           setPayload(null);
           setShowTournamentUi(true);
           setNoActiveEventMode(true);
+          setIdleSchedule(parseSongWarsScheduleFromJson(rec));
+          setLiveSchedule(null);
         } else {
           setPayload(null);
           setShowTournamentUi(false);
           setNoActiveEventMode(false);
+          setIdleSchedule(null);
+          setLiveSchedule(null);
         }
       } catch {
         if (!cancelled) {
           setPayload(null);
           setShowTournamentUi(false);
           setNoActiveEventMode(false);
+          setIdleSchedule(null);
+          setLiveSchedule(null);
         }
       } finally {
         if (!cancelled) setReady(true);
@@ -179,10 +196,10 @@ export function SongWarsLandingHero() {
               <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black tracking-tight mb-4 bg-gradient-to-br from-white via-[#FFD4A8] to-[#FF8C42] bg-clip-text text-transparent">
                 Song Wars
               </h1>
-              <p className="text-xl md:text-2xl text-[#E8E8E8] font-semibold mb-3">No active events yet</p>
+              <p className="text-xl md:text-2xl text-[#E8E8E8] font-semibold mb-3">No active tournament right now</p>
               <p className="text-base md:text-lg text-[#A0A0A0] mb-10 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                The arena is ready. As soon as the next tournament opens, you&apos;ll compete with AI judges and climb
-                the leaderboard, right here.
+                The arena opens every two weeks on <strong className="text-[#E0E0E0]">Friday at 9:00 PM US Central</strong>
+                . Join now so you&apos;re ready when the next event goes live.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
                 <Link href={joinSongWars}>
@@ -206,13 +223,7 @@ export function SongWarsLandingHero() {
               </div>
             </div>
             <div className="flex-1 mt-12 lg:mt-0 flex justify-center lg:justify-end">
-              <div className="w-full max-w-md rounded-3xl border border-[#FF6B00]/30 bg-gradient-to-b from-[#1A1208]/90 to-[#0A0A0A] p-8 shadow-[0_0_60px_rgba(255,107,0,0.12)] text-center lg:text-left">
-                <p className="text-xs font-bold uppercase tracking-widest text-[#FFB86C] mb-2">Event status</p>
-                <p className="text-2xl font-semibold text-white mb-2">Waiting for launch</p>
-                <p className="text-sm text-[#707070]">
-                  Countdowns and live standings appear when an event is scheduled. Stay tuned.
-                </p>
-              </div>
+              <SongWarsNextEventPanel schedule={idleSchedule} variant="landing" />
             </div>
           </div>
         </div>
@@ -349,38 +360,30 @@ export function SongWarsLandingHero() {
           </div>
 
           <div className="flex-1 flex items-center justify-center mt-12 lg:mt-0">
-            <div className="w-full max-w-md rounded-3xl border border-[#FF6B00]/30 bg-gradient-to-b from-[#1A1208]/90 to-[#0A0A0A] p-8 shadow-[0_0_60px_rgba(255,107,0,0.12)] backdrop-blur-sm">
-              <div className="flex items-center gap-2 mb-2 text-[#FFB86C]">
-                <Sparkles className="h-5 w-5" />
-                <span className="text-xs font-bold uppercase tracking-widest">Event clock</span>
+            {payload && live.active && "targetIso" in live ? (
+              <div className="w-full max-w-md rounded-3xl border border-[#FF6B00]/30 bg-gradient-to-b from-[#1A1208]/90 to-[#0A0A0A] p-8 shadow-[0_0_60px_rgba(255,107,0,0.12)] backdrop-blur-sm">
+                <div className="flex items-center gap-2 mb-2 text-[#FFB86C]">
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-xs font-bold uppercase tracking-widest">Event clock</span>
+                </div>
+                <p className="text-sm text-[#A0A0A0] mb-3">{live.label}</p>
+                <p
+                  className="font-mono text-4xl sm:text-5xl font-bold tabular-nums text-white tracking-tight mb-2"
+                  suppressHydrationWarning
+                >
+                  {formatCountdown(live.targetIso)}
+                </p>
+                <p className="text-xs text-[#707070]">
+                  {live.mode === "submissions"
+                    ? "Lock in your tracks before the window closes."
+                    : live.mode === "judging"
+                      ? "Results and standings update as judges finish each round."
+                      : "Hang tight, the next phase is starting soon."}
+                </p>
               </div>
-              {payload && live.active && "targetIso" in live ? (
-                <>
-                  <p className="text-sm text-[#A0A0A0] mb-3">{live.label}</p>
-                  <p
-                    className="font-mono text-4xl sm:text-5xl font-bold tabular-nums text-white tracking-tight mb-2"
-                    suppressHydrationWarning
-                  >
-                    {formatCountdown(live.targetIso)}
-                  </p>
-                  <p className="text-xs text-[#707070]">
-                    {live.mode === "submissions"
-                      ? "Lock in your tracks before the window closes."
-                      : live.mode === "judging"
-                        ? "Results and standings update as judges finish each round."
-                        : "Hang tight, the next phase is starting soon."}
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-[#A0A0A0] mb-3">Next tournament</p>
-                  <p className="text-2xl font-semibold text-white mb-2">Always something brewing</p>
-                  <p className="text-xs text-[#707070]">
-                    Join to enter the current event and get notified when submissions open.
-                  </p>
-                </>
-              )}
-            </div>
+            ) : (
+              <SongWarsNextEventPanel schedule={liveSchedule} variant="landing" />
+            )}
           </div>
         </div>
       </div>
